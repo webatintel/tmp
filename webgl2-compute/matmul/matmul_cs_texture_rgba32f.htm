@@ -1,0 +1,217 @@
+<html><head>
+<title>RGBA32F tex GEMM</title>
+
+<script type="text/javascript">
+
+const CSs = `#version 310 es
+#define TS 32u
+layout (local_size_x = TS, local_size_y = TS, local_size_z = 1) in;
+precision highp float;
+  uniform highp sampler2D samp0;
+  uniform highp sampler2D samp1;
+  layout(rgba32f, binding = 0) writeonly uniform highp image2D outImg;
+  uniform int N;
+void main(void) {
+  vec4 acc = vec4(0.0);
+  for(int i=0; i<N/2; i++)
+  {
+    vec4 a = texelFetch(samp0, ivec2(gl_GlobalInvocationID.x, i), 0); 
+    vec4 b = texelFetch(samp1, ivec2(i, gl_GlobalInvocationID.y), 0);
+    acc += (a.xxzz * b.xyxy) + (a.yyww * b.zwzw);
+  }
+  imageStore(outImg, ivec2(gl_GlobalInvocationID.xy), acc);
+}
+`;
+
+const PackCS = `#version 310 es
+#define TS 32u
+layout (local_size_x = TS, local_size_y = TS, local_size_z = 1) in;
+  precision highp float;
+  uniform highp sampler2D samp0;
+  layout(rgba32f, binding = 0) writeonly uniform highp image2D outImg;
+
+void main(void) {
+  int r = int(gl_GlobalInvocationID.y) * 2;
+  int c = int(gl_GlobalInvocationID.x) * 2;
+  int r1 = r + 1;
+  int c1 = c + 1;
+
+  vec4 result = vec4(texelFetch(samp0, ivec2(c, r), 0).r,
+                     texelFetch(samp0, ivec2(c, r1), 0).r,
+                     texelFetch(samp0, ivec2(c1, r), 0).r,
+                     texelFetch(samp0, ivec2(c1, r1), 0).r);
+  imageStore(outImg, ivec2(gl_GlobalInvocationID.xy), result);
+}
+`;
+
+const UnpackCS = `#version 310 es
+#define TS 32u
+layout (local_size_x = TS, local_size_y = TS, local_size_z = 1) in;
+  precision highp float;
+  uniform highp sampler2D samp0;
+  layout(r32f, binding = 0) writeonly uniform highp image2D outImg;
+
+float getChannel(vec4 frag, vec2 innerDims) {
+  vec2 modCoord = mod(innerDims, 2.);
+  return modCoord.x == 0. ?
+    (modCoord.y == 0. ? frag.r : frag.g) :
+    (modCoord.y == 0. ? frag.b : frag.a);
+}
+
+void main(void) {
+  vec4 a = texelFetch(samp0, ivec2(gl_GlobalInvocationID.x/2u, gl_GlobalInvocationID.y/2u), 0);
+  float result = getChannel(a, vec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y));
+  imageStore(outImg, ivec2(gl_GlobalInvocationID.xy), vec4(result, 0, 0, 0));
+}
+`;
+
+function createShader(gl, type, source){
+   var shader = gl.createShader(type);
+   gl.shaderSource(shader, source);
+   gl.compileShader(shader);
+   if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+   console.log(gl.getShaderInfoLog(shader));
+   gl.deleteShader(shader);
+}
+
+var gl, N = 1024, TS = 32, it = 1, max = 4096, nLoc
+var tex0, tex1, tex2, texC, texA, texB
+var FBO
+var matmulprog, unpackProg, packProg
+var A = new Float32Array(max*max), B = new Float32Array(max*max),
+    C = new Float32Array(1)
+function main() {
+   var c = document.getElementById("c")
+   try { gl = c.getContext("webgl2-compute")
+   } catch(e) {}
+   if ( !gl ) {alert("Can't get WebGL 2 compute"); return}
+   var ext
+   try {
+     ext = gl.getExtension("EXT_color_buffer_float");
+   } catch(e) {}
+   if ( !ext ) {alert(err + "EXT_color_buffer_float"); return;}
+
+   packProg  = gl.createProgram()
+   gl.attachShader(packProg, createShader( gl, gl.COMPUTE_SHADER, PackCS))
+   gl.linkProgram(packProg)
+
+   unpackProg  = gl.createProgram()
+   gl.attachShader(unpackProg, createShader( gl, gl.COMPUTE_SHADER, UnpackCS))
+   gl.linkProgram(unpackProg)
+
+   matmulprog  = gl.createProgram()
+   gl.attachShader(matmulprog, createShader( gl, gl.COMPUTE_SHADER, CSs))
+   gl.linkProgram(matmulprog)
+   gl.useProgram(matmulprog)
+
+   var sampLoc  = gl.getUniformLocation(matmulprog, "samp1")
+   gl.uniform1i(sampLoc, 1)
+   nLoc = gl.getUniformLocation(matmulprog, "N")
+
+   for(i=0; i<max*max; i++){ A[i] = Math.random();  B[i] = Math.random()}
+   tex0 = createRGBATex(A)
+   tex1 = createRGBATex(B)
+   tex2 = createRGBATex(B)
+   texA = createFloatTex(A)
+   texB = createFloatTex(B)
+   texC = createFloatTex(B)
+
+   FBO = gl.createFramebuffer()
+   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, FBO)
+   gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+       gl.TEXTURE_2D, texC, 0)
+
+   run()
+
+ function createRGBATex(data){
+   var tex = gl.createTexture()
+   gl.bindTexture(gl.TEXTURE_2D, tex)
+   gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, max/2,max/2)
+   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0,0, max/2,max/2, gl.RGBA, gl.FLOAT, data)
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+   return tex
+ }
+
+ function createFloatTex(data){
+   var tex = gl.createTexture()
+   gl.bindTexture(gl.TEXTURE_2D, tex)
+   gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R32F, max,max)
+   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0,0, max,max, gl.RED, gl.FLOAT, data)
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+   return tex
+ }
+}
+
+function run(){
+  var ti0 = performance.now()
+  for(var i = 0; i < it; i++)
+  {
+    gl.useProgram(packProg);
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, texA)
+    gl.bindImageTexture(0, tex0, 0, gl.FALSE, 0, gl.WRITE_ONLY, gl.RGBA32F);
+    gl.dispatchCompute(N/2/TS, N/2/TS, 1)
+    gl.memoryBarrier(gl.TEXTURE_UPDATE_BARRIER_BIT)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, texB)
+    gl.bindImageTexture(0, tex1, 0, gl.FALSE, 0, gl.WRITE_ONLY, gl.RGBA32F);
+    gl.dispatchCompute(N/2/TS, N/2/TS, 1)
+    gl.memoryBarrier(gl.TEXTURE_UPDATE_BARRIER_BIT)
+
+    gl.useProgram(matmulprog)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, tex0)
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, tex1)
+    gl.uniform1i(nLoc, N)
+    gl.bindImageTexture(0, tex2, 0, gl.FALSE, 0, gl.WRITE_ONLY, gl.RGBA32F);
+
+    gl.dispatchCompute(N/2/TS, N/2/TS, 1)
+    gl.memoryBarrier(gl.TEXTURE_UPDATE_BARRIER_BIT)
+
+    gl.useProgram(unpackProg)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, tex2)
+    gl.bindImageTexture(0, texC, 0, gl.FALSE, 0, gl.WRITE_ONLY, gl.R32F);
+    gl.dispatchCompute(N/4, N/4, 1)
+    gl.memoryBarrier(gl.TEXTURE_UPDATE_BARRIER_BIT)
+  }
+
+  let acc = 0, m = Math.floor(N*Math.random()), n = Math.floor(N*Math.random())
+  gl.readPixels(m,n, 1,1, gl.RED, gl.FLOAT, C)
+  var ti = performance.now()
+  for(let k=0; k<N; k++) acc += A[k*max + m] * B[n*max + k];
+
+  document.getElementById('output').innerText = "N = " + N +
+    " time = " + Math.round(10*(ti - ti0))/10 +
+    "ms GFLOPS=" + Math.round(N*N*N*it/(ti - ti0)/10000)/100 +
+    "\n C["+n+", "+m+"] = " + C[0] + " " + acc
+}
+</script>
+<style type="text/css">
+  H1{ font-size: 120%; color: green}
+  H2{ font-size: 100%; color: green}
+</style>
+</head>
+<body onload="main()">
+<h1>Matrix multiplication with RGBA32F textures benchmark</h1>
+
+WebGL2 Compute based NxN matrix multiplication C = A x B benchmark.
+The shaders are similar with TFJS's batchMatMul.
+Fixed random A, B 4096x4096 buffers are used for calculations,
+therefore You can set new N value (up to N=4096).
+it - number of iterations. FLOPS = N<sup>3</sup>it / time.
+Two random C<sub>GPU</sub> and C<sub>CPU</sub> are shown.
+
+<p><div id="output"><font color="blue">calculating</font></div>
+<input type="button" onclick="run()" value="Run" size="1">
+N=<input size="3" value="1024" onchange="N=parseInt(this.value); run()">
+it=<input size="2" value="1" onchange="it=parseInt(this.value); run()">
+<br><canvas id="c" width="1" height="1"></canvas>
+
+</body>
+</html>
+
