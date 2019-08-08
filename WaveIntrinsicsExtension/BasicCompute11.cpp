@@ -32,6 +32,9 @@
 // the runtime performance is better than without commenting out.
 #define PREVENT_LOOP_UNROLLING
 
+// Print the result to verify.
+//#define PRINT_DATA
+
 // If defined, then the hardware/driver must report support for double-precision CS 5.0 shaders or the sample fails to run
 //#define TEST_DOUBLE
 
@@ -224,6 +227,7 @@ int __cdecl main()
 		{
 			total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
 		}
+#ifdef PRINT_DATA
 		float acc = 0.0;
 		for (unsigned int k = 0; k < OutputK; k++)
 		{
@@ -233,6 +237,8 @@ int __cdecl main()
 			std::chrono::duration_cast<std::chrono::milliseconds>(diff).count(),
 			std::chrono::duration_cast<std::chrono::microseconds>(diff).count(),
 			m, n, result, acc);
+
+#endif // PRINT_DATA
 	}
 
     double avg_time = total / (count - 1);
