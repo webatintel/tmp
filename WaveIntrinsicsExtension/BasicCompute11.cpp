@@ -100,6 +100,10 @@ ID3D11ShaderResourceView*   g_pBuf0SRV = nullptr;
 ID3D11ShaderResourceView*   g_pBuf1SRV = nullptr;
 ID3D11UnorderedAccessView*  g_pBufResultUAV = nullptr;
 
+ID3D11Query * pQueryDisjoint = nullptr;
+ID3D11Query * pQueryTimestampStart = nullptr;
+ID3D11Query * pQueryTimestampEnd = nullptr;
+
 struct BufType
 {
     int i;
@@ -193,16 +197,63 @@ int __cdecl main()
     printf( "done\n" );
 
     printf( "Running Compute Shader..." );
-	double flops = 2 * OutputM * OutputN * OutputK;
-	double total = 0.0;
-	int count = 20;
-	for (int it = 0; it < count; it++)
-	{
 
-		auto start = std::chrono::steady_clock::now();
-		ID3D11ShaderResourceView* aRViews[2] = { g_pBuf0SRV, g_pBuf1SRV };
-		RunComputeShader(g_pContext, g_pCS, 2, aRViews, nullptr, nullptr, 0, g_pBufResultUAV, OutputN / TSN, OutputM / TSM, 1);
-		//  printf( "done\n" );
+    D3D11_QUERY_DESC queryDesc;
+    queryDesc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+    queryDesc.MiscFlags = 0;
+    g_pDevice->CreateQuery(&queryDesc, &pQueryDisjoint);
+    queryDesc.Query = D3D11_QUERY_TIMESTAMP;
+    g_pDevice->CreateQuery(&queryDesc, &pQueryTimestampStart);
+    g_pDevice->CreateQuery(&queryDesc, &pQueryTimestampEnd);
+
+    double flops = 2 * OutputM * OutputN * OutputK;
+    double total = 0.0;
+    double total_kernel = 0.0;
+    double minTime = 1e100;
+    int count = 20;
+    for (int it = 0; it < count; it++)
+    {
+        g_pContext->Begin(pQueryDisjoint);
+        g_pContext->End(pQueryTimestampStart);
+
+        auto start = std::chrono::steady_clock::now();
+
+        ID3D11ShaderResourceView* aRViews[2] = { g_pBuf0SRV, g_pBuf1SRV };
+        RunComputeShader(g_pContext, g_pCS, 2, aRViews, nullptr, nullptr, 0, g_pBufResultUAV, OutputN / TSN, OutputM / TSM, 1);
+
+        g_pContext->End(pQueryTimestampEnd);
+        g_pContext->End(pQueryDisjoint);
+
+        // Get query data
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
+        while (S_OK != g_pContext->GetData(pQueryDisjoint, &tsDisjoint, sizeof(tsDisjoint), 0));
+        if (tsDisjoint.Disjoint)
+        {
+            printf("Disjoint is true\n");
+        }
+
+        UINT64 StartTime = 0;
+        while(g_pContext->GetData(pQueryTimestampStart, &StartTime, sizeof(StartTime), 0) != S_OK);
+        UINT64 EndTime = 0;
+        while(g_pContext->GetData(pQueryTimestampEnd, &EndTime, sizeof(EndTime), 0) != S_OK);
+
+        auto end = std::chrono::steady_clock::now();
+        auto diff = end - start;
+        if (it > 0)
+        {
+            total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
+        }
+
+        if (it > 0)
+        {
+        UINT64 Delta = EndTime - StartTime;
+        float Frequency = static_cast<float>(tsDisjoint.Frequency);
+        float kernel_time = (Delta / Frequency) * 1000.0f;
+            if (kernel_time < minTime)
+                minTime = kernel_time;
+            total_kernel += kernel_time;
+        }
+#ifdef PRINT_DATA
 		float result = 0.0;
 		int m = rand() % OutputM;
 		int n = rand() % OutputN;
@@ -221,13 +272,7 @@ int __cdecl main()
 
 			SAFE_RELEASE(debugbuf);
 		}
-		auto end = std::chrono::steady_clock::now();
-		auto diff = end - start;
-		if (it > 0)
-		{
-			total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
-		}
-#ifdef PRINT_DATA
+
 		float acc = 0.0;
 		for (unsigned int k = 0; k < OutputK; k++)
 		{
@@ -239,11 +284,18 @@ int __cdecl main()
 			m, n, result, acc);
 
 #endif // PRINT_DATA
-	}
+    }
 
     double avg_time = total / (count - 1);
-    printf("Avg GFlops = %f\n", flops / avg_time / 10000 / 100);
+    double avg_kernel = total_kernel / (count - 1);
+    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n",
+           flops / avg_time / 10000 / 100,
+           flops / avg_kernel / 10000 / 100,
+           flops / minTime / 10000 / 100);
     printf( "Cleaning up...\n" );
+    SAFE_RELEASE(pQueryDisjoint);
+    SAFE_RELEASE(pQueryTimestampStart);
+    SAFE_RELEASE(pQueryTimestampEnd);
     SAFE_RELEASE( g_pBuf0SRV );
     SAFE_RELEASE( g_pBuf1SRV );
     SAFE_RELEASE( g_pBufResultUAV );

@@ -178,6 +178,7 @@ void D3D12SM6WaveIntrinsics::LoadPipeline()
     D3D12_COMMAND_QUEUE_DESC queueDesc = { D3D12_COMMAND_LIST_TYPE_COMPUTE, 0, D3D12_COMMAND_QUEUE_FLAG_NONE };
 
     ThrowIfFailed(m_d3d12Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
+    ThrowIfFailed(m_commandQueue->GetTimestampFrequency(&m_timestampFrequency));
 
     ThrowIfFailed(
         m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE, IID_PPV_ARGS(&m_computeAllocator)));
@@ -196,6 +197,7 @@ void D3D12SM6WaveIntrinsics::LoadPipeline()
 
         m_cbSrvDescriptorSize = m_d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     }
+
 }
 
 // Load the sample assets.
@@ -434,6 +436,26 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
             srvHandle.Offset(3, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1. Third one is for buffer2.
             m_d3d12Device->CreateUnorderedAccessView(m_bufferResult.Get(), nullptr, &uavDesc, srvHandle);
         }
+
+    // Create the query result buffer.
+    {
+        // Two timestamps for each frame.
+        const UINT resultCount = 2 * FrameCount;
+        const UINT resultBufferSize = resultCount * sizeof(UINT64);
+        D3D12_QUERY_HEAP_DESC timestampHeapDesc = {};
+        timestampHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+        timestampHeapDesc.Count = resultCount;
+
+        ThrowIfFailed(m_d3d12Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(resultBufferSize),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            nullptr,
+            IID_PPV_ARGS(&m_queryResult)
+            ));
+        ThrowIfFailed(m_d3d12Device->CreateQueryHeap(&timestampHeapDesc, IID_PPV_ARGS(&m_queryHeap)));
+    }
 }
 
 
@@ -448,15 +470,16 @@ void D3D12SM6WaveIntrinsics::RenderScene()
 {
     double flops = 2 * m_M * m_N * m_K;
     double total = 0.0;
-    int count = 20;
-    for (int it = 0; it < count; it++)
+    for (int it = 0; it < FrameCount; it++)
     {
         // This will restart the command list and start a new record.
         ThrowIfFailed(m_computeAllocator->Reset());
         ThrowIfFailed(m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get()));
 
         // Record commands.
-
+        // Get a timestamp at the start of the command list.
+        const UINT timestampHeapIndex = 2 * it;
+        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         ID3D12DescriptorHeap* pHeaps[] = { m_cbSrvHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(pHeaps), pHeaps);
 
@@ -470,6 +493,9 @@ void D3D12SM6WaveIntrinsics::RenderScene()
 
      //   m_commandList->SetPipelineState(m_computePSO.Get());
         m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
+
+        m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
 
         ThrowIfFailed(m_commandList->Close());
         auto start = std::chrono::steady_clock::now();
@@ -484,8 +510,42 @@ void D3D12SM6WaveIntrinsics::RenderScene()
             total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
         }
     }
-    double avg_time = total / (count - 1);
-    printf("Avg GFlops = %f, time = %fms\n", flops / avg_time / 10000 / 100, avg_time);
+    double avg_time = total / (FrameCount - 1);
+    double total_kernel = 0;
+    double minTime = 1e100;
+
+    // Get the timestamp values from the result buffers.
+    D3D12_RANGE readRange = {};
+    const D3D12_RANGE emptyRange = {};
+    for (UINT i = 0; i < FrameCount; i++)
+    {
+        readRange.Begin = 2 * i * sizeof(UINT64);
+        readRange.End = readRange.Begin + 2 * sizeof(UINT64);
+
+        void* pData = nullptr;
+        ThrowIfFailed(m_queryResult->Map(0, &readRange, &pData));
+
+        const UINT64* pTimestamps = reinterpret_cast<UINT64*>(static_cast<UINT8*>(pData) + readRange.Begin);
+        const UINT64 timeStampDelta = pTimestamps[1] - pTimestamps[0];
+
+        // Unmap with an empty range (written range).
+        m_queryResult->Unmap(0, &emptyRange);
+
+        // Calculate the GPU execution time in microseconds.
+        const UINT64 gpuTimeMS =  (timeStampDelta * 1000) / m_timestampFrequency;
+        if (i > 0)
+        {
+            if (gpuTimeMS < minTime)
+                minTime = gpuTimeMS;
+            total_kernel += gpuTimeMS;
+        }
+
+    }
+    double avg_kernel = total_kernel / (FrameCount - 1);
+    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n",
+           flops / avg_time / 10000 / 100,
+           flops / avg_kernel / 10000 / 100,
+           flops / minTime / 10000 / 100);
 
     m_computeAllocator->Reset();
     m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get());
@@ -521,7 +581,6 @@ void D3D12SM6WaveIntrinsics::RenderScene()
 
     result = pReadbackBufferData[m*m_N + n];
 
-    D3D12_RANGE emptyRange{ 0, 0 };
     readbackBuffer->Unmap(0, &emptyRange);
 
     float acc = 0.0;
