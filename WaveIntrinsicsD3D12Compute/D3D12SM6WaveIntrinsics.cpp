@@ -479,7 +479,6 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         // Record commands.
         // Get a timestamp at the start of the command list.
         const UINT timestampHeapIndex = 2 * it;
-        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         ID3D12DescriptorHeap* pHeaps[] = { m_cbSrvHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(pHeaps), pHeaps);
 
@@ -491,8 +490,13 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         gpuSrvDescriptorHandle.Offset(2, m_cbSrvDescriptorSize);
         m_commandList->SetComputeRootDescriptorTable(2, gpuSrvDescriptorHandle);
 
-     //   m_commandList->SetPipelineState(m_computePSO.Get());
-        m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+        //   m_commandList->SetPipelineState(m_computePSO.Get());
+
+        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
+        for (int c = 0; c < DispatchCountPerFrame; c++)
+        {
+            m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+        }
         m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
 
         m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
@@ -505,12 +509,12 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         WaitForGpu();
         auto end = std::chrono::steady_clock::now();
         auto diff = end - start;
-        if (it > 0)
+      //  if (it > 0)
         {
             total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
         }
     }
-    double avg_time = total / (FrameCount - 1);
+    double avg_time = total / (FrameCount) / DispatchCountPerFrame;
     double total_kernel = 0;
     double minTime = 1e100;
 
@@ -533,7 +537,7 @@ void D3D12SM6WaveIntrinsics::RenderScene()
 
         // Calculate the GPU execution time in microseconds.
         const UINT64 gpuTimeMS =  (timeStampDelta * 1000) / m_timestampFrequency;
-        if (i > 0)
+      //  if (i > 0)
         {
             if (gpuTimeMS < minTime)
                 minTime = gpuTimeMS;
@@ -541,7 +545,8 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         }
 
     }
-    double avg_kernel = total_kernel / (FrameCount - 1);
+    double avg_kernel = total_kernel / (FrameCount) / DispatchCountPerFrame;
+    minTime /= DispatchCountPerFrame;
     printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n",
            flops / avg_time / 10000 / 100,
            flops / avg_kernel / 10000 / 100,

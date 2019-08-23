@@ -53,7 +53,8 @@ public:
     void OnDestroy();
 
 private:
-    static const UINT FrameCount = 20;
+    static const UINT FrameCount = 100;
+    static const UINT DispatchCountPerFrame = 1;
     struct SceneConstantBuffer
     {
         int M;
