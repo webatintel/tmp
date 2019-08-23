@@ -53,7 +53,7 @@ static HRESULT EnableExperimentalShaderModels() {
 D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics() :
     m_frameIndex(0),
     m_pCbSrvDataBegin(nullptr),
-    m_cbSrvDescriptorSize(0),
+    m_srvUavDescriptorSize(0),
     m_constantBufferData{},
     m_M(1024),
     m_N(1024),
@@ -190,12 +190,12 @@ void D3D12SM6WaveIntrinsics::LoadPipeline()
         // Flags indicate that this descriptor heap can be bound to the pipeline 
         // and that descriptors contained in it can be referenced by a root table.
         D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
-        cbvHeapDesc.NumDescriptors = 4;  // 1 constant buffer, 2 SRV, 1 UAV.
+        cbvHeapDesc.NumDescriptors = 3;  // 2 SRV, 1 UAV.
         cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        ThrowIfFailed(m_d3d12Device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_cbSrvHeap)));
+        ThrowIfFailed(m_d3d12Device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&m_srvUavHeap)));
 
-        m_cbSrvDescriptorSize = m_d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        m_srvUavDescriptorSize = m_d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     }
 
 }
@@ -210,23 +210,21 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
         // This is the highest version the sample supports. If CheckFeatureSupport succeeds, the HighestVersion returned will not be greater than this.
         featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
-        CD3DX12_DESCRIPTOR_RANGE1 ranges[3];
-        CD3DX12_ROOT_PARAMETER1 rootParameters[3];
+        CD3DX12_DESCRIPTOR_RANGE ranges[3];
+        CD3DX12_ROOT_PARAMETER rootParameters[3];
 
         if (FAILED(m_d3d12Device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &featureData, sizeof(featureData))))
         {
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
         }
-        // Root signature for render pass2
-        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
+
         ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
         ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
-        rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_ALL);
+        rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_ALL);
         rootParameters[2].InitAsDescriptorTable(1, &ranges[2], D3D12_SHADER_VISIBILITY_ALL);
 
-        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE);
+        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(_countof(rootParameters), rootParameters);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
@@ -281,13 +279,6 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
         bufferData.RowPitch = sizeof(m_constantBufferData);
         UpdateSubresources(m_commandList.Get(), m_constantBuffer.Get(), m_intermediateBuffer.Get(), 0, 0, 1, &bufferData);
         ResourceBarrier(m_commandList.Get(), m_constantBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-
-        // Describe and create a constant buffer view.
-        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-        cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
-        cbvDesc.SizeInBytes = (sizeof(SceneConstantBuffer) + 255) & ~255;    // CB size is required to be 256-byte aligned.
-        CD3DX12_CPU_DESCRIPTOR_HANDLE cbHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
-        m_d3d12Device->CreateConstantBufferView(&cbvDesc, cbHandle);
     }
 
     LoadSizeDependentResources();
@@ -361,8 +352,7 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
         srvDesc.Buffer.NumElements = elementCount;
         srvDesc.Buffer.StructureByteStride = sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
-        srvHandle.Offset(1, m_cbSrvDescriptorSize); // First one is for constant buffer.
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
         m_d3d12Device->CreateShaderResourceView(m_buffer1.Get(), &srvDesc, srvHandle);
     }
 
@@ -406,8 +396,8 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
         srvDesc.Buffer.NumElements = elementCount;
         srvDesc.Buffer.StructureByteStride = sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
-        srvHandle.Offset(2, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
+        srvHandle.Offset(1, m_srvUavDescriptorSize); // First one is for buffer1
         m_d3d12Device->CreateShaderResourceView(m_buffer2.Get(), &srvDesc, srvHandle);
 	}
         // Create bufferResult and UAV for it.
@@ -432,8 +422,8 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
             uavDesc.Buffer.NumElements = elementCount;
             uavDesc.Buffer.StructureByteStride = sizeof(float);
             uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-            CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_cbSrvHeap->GetCPUDescriptorHandleForHeapStart());
-            srvHandle.Offset(3, m_cbSrvDescriptorSize); // First one is for constant buffer. Senond one is for buffer1. Third one is for buffer2.
+            CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
+            srvHandle.Offset(2, m_srvUavDescriptorSize); // First one is for buffer1. Second one is for buffer2.
             m_d3d12Device->CreateUnorderedAccessView(m_bufferResult.Get(), nullptr, &uavDesc, srvHandle);
         }
 
@@ -479,18 +469,15 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         // Record commands.
         // Get a timestamp at the start of the command list.
         const UINT timestampHeapIndex = 2 * it;
-        ID3D12DescriptorHeap* pHeaps[] = { m_cbSrvHeap.Get() };
+        ID3D12DescriptorHeap* pHeaps[] = { m_srvUavHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(pHeaps), pHeaps);
 
         m_commandList->SetComputeRootSignature(m_computeRootSignature.Get());
-        CD3DX12_GPU_DESCRIPTOR_HANDLE gpuSrvDescriptorHandle(m_cbSrvHeap->GetGPUDescriptorHandleForHeapStart());
-        m_commandList->SetComputeRootDescriptorTable(0, gpuSrvDescriptorHandle);
-        gpuSrvDescriptorHandle.Offset(1, m_cbSrvDescriptorSize);
-        m_commandList->SetComputeRootDescriptorTable(1, gpuSrvDescriptorHandle);
-        gpuSrvDescriptorHandle.Offset(2, m_cbSrvDescriptorSize);
-        m_commandList->SetComputeRootDescriptorTable(2, gpuSrvDescriptorHandle);
-
-        //   m_commandList->SetPipelineState(m_computePSO.Get());
+        m_commandList->SetComputeRootConstantBufferView(0, m_constantBuffer->GetGPUVirtualAddress());
+        CD3DX12_GPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetGPUDescriptorHandleForHeapStart(), 0, m_srvUavDescriptorSize);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE uavHandle(m_srvUavHeap->GetGPUDescriptorHandleForHeapStart(), 2, m_srvUavDescriptorSize);
+        m_commandList->SetComputeRootDescriptorTable(1, srvHandle);
+        m_commandList->SetComputeRootDescriptorTable(2, uavHandle);
 
         m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         for (int c = 0; c < DispatchCountPerFrame; c++)

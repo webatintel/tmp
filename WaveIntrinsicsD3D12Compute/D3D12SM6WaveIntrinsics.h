@@ -68,11 +68,11 @@ private:
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12CommandAllocator> m_computeAllocator;
     ComPtr<ID3D12RootSignature> m_computeRootSignature;
-    ComPtr<ID3D12DescriptorHeap> m_cbSrvHeap;
+    ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
     ComPtr<ID3D12QueryHeap> m_queryHeap;
     ComPtr<ID3D12PipelineState> m_computePSO;
     ComPtr<ID3D12GraphicsCommandList> m_commandList;
-    UINT m_cbSrvDescriptorSize;
+    UINT m_srvUavDescriptorSize;
 
     // App resources.
     ComPtr<ID3D12Resource> m_intermediateBuffer;
