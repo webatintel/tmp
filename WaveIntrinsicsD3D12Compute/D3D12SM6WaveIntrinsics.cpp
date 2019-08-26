@@ -16,7 +16,8 @@
 #include <chrono>
 
 #define PRINT_DATA
-//#define _USE_SIMD_8X4_1X8
+// Comment out this line. Shared memory algorithm will be used.
+#define _USE_SIMD_8X4_1X8
 
 namespace
 {
