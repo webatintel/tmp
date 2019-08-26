@@ -17,7 +17,7 @@
 
 #define PRINT_DATA
 // Comment out this line. Shared memory algorithm will be used.
-#define _USE_SIMD_8X4_1X8
+#define USE_SIMD_8X4_1X8
 
 namespace
 {
@@ -67,7 +67,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics() :
 
 void D3D12SM6WaveIntrinsics::Start()
 {
-#ifdef _USE_SIMD_8X4_1X8
+#ifdef USE_SIMD_8X4_1X8
     m_tileM = 8;
     m_tileN = 32;
     m_tileK = 32;
@@ -236,11 +236,11 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
     // Create the compute pipeline state, which includes compiling and loading shaders.
     D3D12_COMPUTE_PIPELINE_STATE_DESC descComputePSO = {};
     descComputePSO.pRootSignature = m_computeRootSignature.Get();
-#ifdef _USE_SIMD_8X4_1X8
+#ifdef USE_SIMD_8X4_1X8
     descComputePSO.CS = { g_Wave_CS, sizeof(g_Wave_CS) };
 #else
     descComputePSO.CS = { g_Shared_CS, sizeof(g_Shared_CS) };
-#endif // _USE_SIMD_8X4_1X8
+#endif // USE_SIMD_8X4_1X8
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
     m_computePSO->SetName(L"Compute PSO");
 

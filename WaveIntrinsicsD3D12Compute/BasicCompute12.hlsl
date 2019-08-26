@@ -6,6 +6,16 @@
 *  You may need to modify the SDK paths in CompileShader_SM6.bat to match the installed SDK. By default the path is pointing to 15063 SDK.
 */
 
+float4 intel_sub_group_shuffle(float4 input, uint lane)
+{
+	return WaveReadLaneAt(input, lane);
+}
+
+float2 intel_sub_group_shuffle(float2 input, uint lane)
+{
+	return WaveReadLaneAt(input, lane);
+}
+
 cbuffer SceneConstantBuffer : register( b0 )
 {
     int M;
@@ -29,7 +39,7 @@ void initGLBuiltins(CS_INPUT input)
     gl_LocalInvocationID = input.dx_LocalInvocationID;
 };
 
-#ifdef _USE_SLM_8X8_4X16
+#ifdef USE_SLM_8X8_4X16
 StructuredBuffer<float4> src0 : register(t0);
 StructuredBuffer<float4> src1 : register(t1);
 RWStructuredBuffer<float4> dst : register(u0);
@@ -232,9 +242,9 @@ void main(CS_INPUT input)
     dst[dst_write1] = dot16;  dst_write1 += width1;
     dst[dst_write1] = dot17;  dst_write1 += width1;
 }
-#endif  // _USE_SLM_8X8_4X16
+#endif  // USE_SLM_8X8_4X16
 
-#ifdef _USE_SIMD_8X4_1X8
+#ifdef USE_SIMD_8X4_1X8
 StructuredBuffer<float4> src0 : register(t0);
 StructuredBuffer<float4> src1 : register(t1);
 RWStructuredBuffer<float4> dst : register(u0);
@@ -242,7 +252,6 @@ RWStructuredBuffer<float4> dst : register(u0);
 static int VEC_SIZE = 4;
 static int TILE_M = 8;
 static int TILE_N = 32;
-static int TILE_K0 = 32;
 
 [numthreads(8, 1, 1)]
 void main(CS_INPUT input)
@@ -314,14 +323,14 @@ void main(CS_INPUT input)
         // hit a fxc bug which reuslts the shader compilation is really slow.
         for (int _index = 0; _index < TILE_K / VEC_SIZE; _index++)
         {
-            a0 = WaveReadLaneAt( arow0, _index );
-            a1 = WaveReadLaneAt( arow1, _index );
-            a2 = WaveReadLaneAt( arow2, _index );
-            a3 = WaveReadLaneAt( arow3, _index );
-            a4 = WaveReadLaneAt( arow4, _index );
-            a5 = WaveReadLaneAt( arow5, _index );
-            a6 = WaveReadLaneAt( arow6, _index );
-            a7 = WaveReadLaneAt( arow7, _index );
+            a0 = intel_sub_group_shuffle( arow0, _index );
+            a1 = intel_sub_group_shuffle( arow1, _index );
+            a2 = intel_sub_group_shuffle( arow2, _index );
+            a3 = intel_sub_group_shuffle( arow3, _index );
+            a4 = intel_sub_group_shuffle( arow4, _index );
+            a5 = intel_sub_group_shuffle( arow5, _index );
+            a6 = intel_sub_group_shuffle( arow6, _index );
+            a7 = intel_sub_group_shuffle( arow7, _index );
             const float4 brow00 = src1[src1_read0];   src1_read0 += width1;
             const float4 brow01 = src1[src1_read0];   src1_read0 += width1;
             const float4 brow02 = src1[src1_read0];   src1_read0 += width1;
@@ -362,14 +371,14 @@ void main(CS_INPUT input)
 #else
 #define ITERATION( _index ) \
         {   \
-            a0 = WaveReadLaneAt( arow0, _index ); \
-            a1 = WaveReadLaneAt( arow1, _index ); \
-            a2 = WaveReadLaneAt( arow2, _index ); \
-            a3 = WaveReadLaneAt( arow3, _index ); \
-            a4 = WaveReadLaneAt( arow4, _index ); \
-            a5 = WaveReadLaneAt( arow5, _index ); \
-            a6 = WaveReadLaneAt( arow6, _index ); \
-            a7 = WaveReadLaneAt( arow7, _index ); \
+            a0 = intel_sub_group_shuffle( arow0, _index ); \
+            a1 = intel_sub_group_shuffle( arow1, _index ); \
+            a2 = intel_sub_group_shuffle( arow2, _index ); \
+            a3 = intel_sub_group_shuffle( arow3, _index ); \
+            a4 = intel_sub_group_shuffle( arow4, _index ); \
+            a5 = intel_sub_group_shuffle( arow5, _index ); \
+            a6 = intel_sub_group_shuffle( arow6, _index ); \
+            a7 = intel_sub_group_shuffle( arow7, _index ); \
             const float4 brow00 = src1[src1_read0];   src1_read0 += width1;    \
             const float4 brow01 = src1[src1_read0];   src1_read0 += width1;    \
             const float4 brow02 = src1[src1_read0];   src1_read0 += width1;    \
@@ -421,8 +430,8 @@ void main(CS_INPUT input)
         ITERATION( 7 );
 #undef ITERATION
 #endif  // PREVENT_LOOP_UNROLLING
-        src0_read += TILE_K0 / VEC_SIZE;
-        w += TILE_K0 / VEC_SIZE;
+        src0_read += TILE_K / VEC_SIZE;
+        w += TILE_K / VEC_SIZE;
     }
     while( w < width0 );
 
@@ -435,4 +444,148 @@ void main(CS_INPUT input)
     dst[dst_write0] = dot06;  dst_write0 += width1;
     dst[dst_write0] = dot07;  dst_write0 += width1;
 }
-#endif  // _USE_SIMD_8X4_1X8
+#endif  // USE_SIMD_8X4_1X8
+
+#ifdef USE_SIMD_16x2_1x8
+StructuredBuffer<float2> src0 : register(t0);
+StructuredBuffer<float2> src1 : register(t1);
+RWStructuredBuffer<float2> dst : register(u0);
+
+static int VEC_SIZE = 2;
+static int TILE_M = 16;
+static int TILE_N = 16;
+
+[numthreads(8, 1, 1)]
+void main(CS_INPUT input)
+{
+    IntelExt_Init();
+    initGLBuiltins(input);
+    int width0 = K / VEC_SIZE;
+    int width1 = N / VEC_SIZE;
+
+    int group_x = int(gl_WorkGroupID.x);
+    int group_y = int(gl_WorkGroupID.y);
+    int local_x = int(gl_LocalInvocationID.x);
+
+    // Result ctile is M rows x N columns
+    // M = 16, we have 1 row of work-items, so we need 16/1 = 16 results down
+    // N = 16, we have 8 columns of work-items, so we need 16/8 = 2 result across
+
+    float2  dot[16];
+    for (int i = 0; i < 16; i++)
+    {
+        dot[i] = 0.f;
+    }
+
+    int dst_write0 = local_x + ( group_x * ( TILE_N / VEC_SIZE ) ) + ( group_y * TILE_M ) * width1;
+
+    // Src0 is directly used as atile.
+    // It starts at the left side of src0 and walks across.
+    // atile is M rows x K columns.
+    int src0_read = local_x + ( group_y * TILE_M ) * width0;
+
+    // Src1 is directly used as btile.
+    // It starts at the top of src1 and walks down.
+    // btile is K rows x N columns.
+    int src1_read0 = local_x + ( group_x * ( TILE_N / VEC_SIZE ) );
+
+    // Walk ACROSS src0 and DOWN src1:
+    int w = 0;
+    do
+    {
+        // We want to load atile, which is M rows x K columns
+        // M = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // K = 16, we have 8 columns of work-items, so each work-item must load 16/8 = 2 columns
+        float2  arow;
+
+        // Now load btile, which is K rows x N columns
+        // K = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // N = 16, we have 8 columns of work-items, so each work-item must load 16/8 = 2 columns
+        float2  brow0 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow4 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow5 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow6 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow7 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow8 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow9 = src1[src1_read0];  src1_read0 += width1;
+        float2  browa = src1[src1_read0];  src1_read0 += width1;
+        float2  browb = src1[src1_read0];  src1_read0 += width1;
+        float2  browc = src1[src1_read0];  src1_read0 += width1;
+        float2  browd = src1[src1_read0];  src1_read0 += width1;
+        float2  browe = src1[src1_read0];  src1_read0 += width1;
+        float2  browf = src1[src1_read0];  src1_read0 += width1;
+
+#ifdef PREVENT_LOOP_UNROLLING
+        for (int i = 0; i < TILE_K; i++)
+        {
+            arow = src0[src0_read + i * width0 ];
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).x), brow0, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).y), brow1, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).x), brow2, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).y), brow3, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).x), brow4, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).y), brow5, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).x), brow6, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).y), brow7, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).x), brow8, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).y), brow9, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).x), browa, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).y), browb, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).x), browc, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).y), browd, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).x), browe, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).y), browf, dot[i] );
+        }
+#else
+#define MM_DOT_PRODUCT( _row, _dot )   \
+        arow = src0[src0_read + _row * width0 ];                           \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).x), brow0, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).y), brow1, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).x), brow2, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).y), brow3, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).x), brow4, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).y), brow5, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).x), brow6, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).y), brow7, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).x), brow8, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).y), brow9, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).x), browa, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).y), browb, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).x), browc, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).y), browd, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).x), browe, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).y), browf, _dot );
+
+        MM_DOT_PRODUCT( 0x0, dot[0] );
+        MM_DOT_PRODUCT( 0x1, dot[1] );
+        MM_DOT_PRODUCT( 0x2, dot[2] );
+        MM_DOT_PRODUCT( 0x3, dot[3] );
+        MM_DOT_PRODUCT( 0x4, dot[4] );
+        MM_DOT_PRODUCT( 0x5, dot[5] );
+        MM_DOT_PRODUCT( 0x6, dot[6] );
+        MM_DOT_PRODUCT( 0x7, dot[7] );
+        MM_DOT_PRODUCT( 0x8, dot[8] );
+        MM_DOT_PRODUCT( 0x9, dot[9] );
+        MM_DOT_PRODUCT( 0xa, dot[10] );
+        MM_DOT_PRODUCT( 0xb, dot[11] );
+        MM_DOT_PRODUCT( 0xc, dot[12] );
+        MM_DOT_PRODUCT( 0xd, dot[13] );
+        MM_DOT_PRODUCT( 0xe, dot[14] );
+        MM_DOT_PRODUCT( 0xf, dot[15] );
+
+#undef MM_DOT_PRODUCT
+#endif  //PREVENT_LOOP_UNROLLING
+        src0_read += TILE_K / VEC_SIZE;
+        w += TILE_K / VEC_SIZE;
+    }
+    while( w < width0 );
+
+    for (int i = 0; i < TILE_K; i++)
+    {
+        dst[dst_write0] = dot[i];  dst_write0 += width1;
+    }
+}
+#endif  // USE_SIMD_16x2_1x8

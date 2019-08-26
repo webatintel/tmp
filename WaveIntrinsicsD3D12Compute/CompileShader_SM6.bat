@@ -21,8 +21,8 @@ EXIT /b 1
 ECHO DXC Path: %dxcCmd%
 ECHO Start compiling shaders...
 ECHO ON
-%dxcCmd% /D_USE_SLM_8X8_4X16 /Zi /E"main" /Vn"g_Shared_CS" /Tcs_6_0 /Fh"shared_cs.hlsl.h" /nologo wave_cs.hlsl
+%dxcCmd% /D USE_SLM_8X8_4X16 /Zi /E"main" /Vn"g_Shared_CS" /Tcs_6_0 /Fh"shared_cs.hlsl.h" /nologo BasicCompute12.hlsl
 @IF %ERRORLEVEL% NEQ 0 (EXIT /b %ERRORLEVEL%)
-%dxcCmd% /D_USE_SIMD_8X4_1X8 /Zi /E"main" /Vn"g_Wave_CS" /Tcs_6_0 /Fh"wave_cs.hlsl.h" /nologo wave_cs.hlsl
+%dxcCmd% /D USE_SIMD_8X4_1X8 /Zi /E"main" /Vn"g_Wave_CS" /Tcs_6_0 /Fh"wave_cs.hlsl.h" /nologo BasicCompute12.hlsl
 @IF %ERRORLEVEL% NEQ 0 (EXIT /b %ERRORLEVEL%)
 ECHO Done.
