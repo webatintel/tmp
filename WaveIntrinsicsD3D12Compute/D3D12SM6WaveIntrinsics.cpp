@@ -430,7 +430,7 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
     // Create the query result buffer.
     {
         // Two timestamps for each frame.
-        const UINT resultCount = 2 * FrameCount;
+        const UINT resultCount = 2 * FrameCount * DispatchCountPerFrame;
         const UINT resultBufferSize = resultCount * sizeof(UINT64);
         D3D12_QUERY_HEAP_DESC timestampHeapDesc = {};
         timestampHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
@@ -467,8 +467,6 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         ThrowIfFailed(m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get()));
 
         // Record commands.
-        // Get a timestamp at the start of the command list.
-        const UINT timestampHeapIndex = 2 * it;
         ID3D12DescriptorHeap* pHeaps[] = { m_srvUavHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(pHeaps), pHeaps);
 
@@ -479,14 +477,15 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         m_commandList->SetComputeRootDescriptorTable(1, srvHandle);
         m_commandList->SetComputeRootDescriptorTable(2, uavHandle);
 
-        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
         for (int c = 0; c < DispatchCountPerFrame; c++)
         {
+            // Get a timestamp at the before and after dispatch command.
+            const UINT timestampHeapIndex = 2 * it + 2 * c;
+            m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex);
             m_commandList->Dispatch(m_N / m_tileN, m_M / m_tileM, 1);
+            m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
+            m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
         }
-        m_commandList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex + 1);
-
-        m_commandList->ResolveQueryData(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampHeapIndex, 2, m_queryResult.Get(), timestampHeapIndex * sizeof(UINT64));
 
         ThrowIfFailed(m_commandList->Close());
         auto start = std::chrono::steady_clock::now();
@@ -496,10 +495,7 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         WaitForGpu();
         auto end = std::chrono::steady_clock::now();
         auto diff = end - start;
-      //  if (it > 0)
-        {
-            total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
-        }
+        total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
     }
     double avg_time = total / (FrameCount) / DispatchCountPerFrame;
     double total_kernel = 0;
@@ -510,7 +506,9 @@ void D3D12SM6WaveIntrinsics::RenderScene()
     const D3D12_RANGE emptyRange = {};
     for (UINT i = 0; i < FrameCount; i++)
     {
-        readRange.Begin = 2 * i * sizeof(UINT64);
+    for (UINT j = 0; j < DispatchCountPerFrame; j++)
+	{
+        readRange.Begin = (2 * i + 2 * j) * sizeof(UINT64);
         readRange.End = readRange.Begin + 2 * sizeof(UINT64);
 
         void* pData = nullptr;
@@ -524,16 +522,25 @@ void D3D12SM6WaveIntrinsics::RenderScene()
 
         // Calculate the GPU execution time in microseconds.
         const UINT64 gpuTimeMS =  (timeStampDelta * 1000) / m_timestampFrequency;
-      //  if (i > 0)
+        // Don't consider the first dispatch time.
+        if (j > 0 || (DispatchCountPerFrame == 1))
         {
             if (gpuTimeMS < minTime)
                 minTime = gpuTimeMS;
             total_kernel += gpuTimeMS;
         }
-
     }
-    double avg_kernel = total_kernel / (FrameCount) / DispatchCountPerFrame;
-    minTime /= DispatchCountPerFrame;
+    }
+    double avg_kernel = 0;
+    if (DispatchCountPerFrame > 1)
+    {
+        // Don't consider the first dispatch time.
+        avg_kernel = total_kernel / FrameCount / (DispatchCountPerFrame - 1);
+    }
+    else
+    {
+        avg_kernel = total_kernel / FrameCount / DispatchCountPerFrame;
+    }
     printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n",
            flops / avg_time / 10000 / 100,
            flops / avg_kernel / 10000 / 100,
