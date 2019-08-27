@@ -11,13 +11,19 @@
 
 #include "stdafx.h"
 #include "D3D12SM6WaveIntrinsics.h"
-#include "wave_cs.hlsl.h"
-#include "shared_cs.hlsl.h"
+#include "SLM_8X8_4X16_cs.hlsl.h"
+#include "SIMD_8X4_1X8_cs.hlsl.h"
+#include "SIMD_4x1_1x8_cs.hlsl.h"
+#include "SIMD_16x2_1x8_cs.hlsl.h"
 #include <chrono>
 
 #define PRINT_DATA
-// Comment out this line. Shared memory algorithm will be used.
+// Comment out all definition of USE_SIMD*. Shared memory algorithm will be used.
 #define USE_SIMD_8X4_1X8
+//#define USE_SIMD_4x1_1x8
+
+// There are still bug for SIMD_16x2_1x8. The result is not correct.
+//#define USE_SIMD_16x2_1x8
 
 namespace
 {
@@ -72,6 +78,18 @@ void D3D12SM6WaveIntrinsics::Start()
     m_tileN = 32;
     m_tileK = 32;
 #endif  // USE_SIMD_8X4_1X8
+#ifdef USE_SIMD_4x1_1x8
+    m_tileM = 4;
+    m_tileN = 8;
+    m_tileK = 8;
+#endif // USE_SIMD_4x1_1x8
+#ifdef USE_SIMD_16x2_1x8
+    m_tileM = 16;
+    m_tileK = 16;
+    m_tileN = 16;
+#endif // USE_SIMD_16x2_1x8
+
+
     LoadPipeline();
     LoadAssets();
     RenderScene();
@@ -237,9 +255,17 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
     D3D12_COMPUTE_PIPELINE_STATE_DESC descComputePSO = {};
     descComputePSO.pRootSignature = m_computeRootSignature.Get();
 #ifdef USE_SIMD_8X4_1X8
-    descComputePSO.CS = { g_Wave_CS, sizeof(g_Wave_CS) };
+    descComputePSO.CS = { g_SIMD_8X4_1X8_CS, sizeof(g_SIMD_8X4_1X8_CS) };
 #else
-    descComputePSO.CS = { g_Shared_CS, sizeof(g_Shared_CS) };
+#ifdef USE_SIMD_4x1_1x8
+    descComputePSO.CS = { g_SIMD_4x1_1x8_CS, sizeof(g_SIMD_4x1_1x8_CS) };
+#else
+#ifdef USE_SIMD_16x2_1x8
+    descComputePSO.CS = { g_SIMD_16x2_1x8_CS, sizeof(g_SIMD_16x2_1x8_CS) };
+#else
+    descComputePSO.CS = { g_SLM_8X8_4X16_CS, sizeof(g_SLM_8X8_4X16_CS) };
+#endif // USE_SIMD_16x2_1x8
+#endif // USE_SIMD_4x1_1x8
 #endif // USE_SIMD_8X4_1X8
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
     m_computePSO->SetName(L"Compute PSO");
@@ -561,6 +587,7 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         nullptr,
         IID_PPV_ARGS(&readbackBuffer)));
     readbackBuffer->SetName(L"Readback buffer Map");
+
     ResourceBarrier(m_commandList.Get(), m_bufferResult.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     m_commandList->CopyResource(readbackBuffer.Get(), m_bufferResult.Get());
 
