@@ -103,6 +103,7 @@ private:
 	UINT m_tileM;
 	UINT m_tileN;
 	UINT m_tileK;
+	UINT m_componentSize;
 	std::vector<float> buf1Data;
 	std::vector<float> buf2Data;
 

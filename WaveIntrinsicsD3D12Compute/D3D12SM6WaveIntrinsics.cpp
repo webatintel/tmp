@@ -67,7 +67,8 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics() :
     m_K(1024),
     m_tileM(32),
     m_tileN(128),
-    m_tileK(64)
+    m_tileK(64),
+    m_componentSize(4)
 {
 }
 
@@ -77,16 +78,19 @@ void D3D12SM6WaveIntrinsics::Start()
     m_tileM = 8;
     m_tileN = 32;
     m_tileK = 32;
+    m_componentSize = 4;
 #endif  // USE_SIMD_8X4_1X8
 #ifdef USE_SIMD_4x1_1x8
     m_tileM = 4;
     m_tileN = 8;
     m_tileK = 8;
+    m_componentSize = 1;
 #endif // USE_SIMD_4x1_1x8
 #ifdef USE_SIMD_16x2_1x8
     m_tileM = 16;
     m_tileK = 16;
     m_tileN = 16;
+    m_componentSize = 2;
 #endif // USE_SIMD_16x2_1x8
 
 
@@ -376,8 +380,8 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = elementCount;
-        srvDesc.Buffer.StructureByteStride = sizeof(float);
+        srvDesc.Buffer.NumElements = elementCount / m_componentSize;
+        srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
         m_d3d12Device->CreateShaderResourceView(m_buffer1.Get(), &srvDesc, srvHandle);
@@ -420,8 +424,8 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = elementCount;
-        srvDesc.Buffer.StructureByteStride = sizeof(float);
+        srvDesc.Buffer.NumElements = elementCount / m_componentSize;
+        srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(1, m_srvUavDescriptorSize); // First one is for buffer1
@@ -446,8 +450,8 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
             uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
             uavDesc.Format = DXGI_FORMAT_UNKNOWN;
             uavDesc.Buffer.FirstElement = 0;
-            uavDesc.Buffer.NumElements = elementCount;
-            uavDesc.Buffer.StructureByteStride = sizeof(float);
+            uavDesc.Buffer.NumElements = elementCount / m_componentSize;
+            uavDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
             uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
             CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
             srvHandle.Offset(2, m_srvUavDescriptorSize); // First one is for buffer1. Second one is for buffer2.
