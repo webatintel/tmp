@@ -21,8 +21,6 @@
 // Comment out all definition of USE_SIMD*. Shared memory algorithm will be used.
 #define USE_SIMD_8X4_1X8
 //#define USE_SIMD_4x1_1x8
-
-// There are still bug for SIMD_16x2_1x8. The result is not correct.
 //#define USE_SIMD_16x2_1x8
 
 namespace

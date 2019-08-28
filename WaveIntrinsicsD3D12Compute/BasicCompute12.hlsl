@@ -463,7 +463,6 @@ static int TILE_N = 16;
 [numthreads(8, 1, 1)]
 void main(CS_INPUT input)
 {
-    IntelExt_Init();
     initGLBuiltins(input);
     int width0 = K / VEC_SIZE;
     int width1 = N / VEC_SIZE;
