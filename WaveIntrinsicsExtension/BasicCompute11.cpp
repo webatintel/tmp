@@ -43,12 +43,15 @@ const UINT OutputM = 1024, OutputN = OutputM, OutputK = OutputM;
 
 #ifdef USE_SLM_8X8_4X16
 const UINT TSM = 32, TSN = 128, TSK = 64;
+const UINT ComponentSize = 4;
 #endif // USE_SLM_8X8_4X16
 #ifdef USE_SIMD_8X4_1X8
 const UINT TSM = 8, TSN = 32, TSK = 32;
+const UINT ComponentSize = 4;
 #endif  // USE_SIMD_8X4_1X8
 #ifdef USE_SIMD_16x2_1x8
 const UINT TSM = 16, TSN = 16, TSK = 16;
+const UINT ComponentSize = 2;
 #endif // USE_SIMD_16x2_1x8
 
 const UINT NUM_ELEMENTS = OutputM * OutputN;
@@ -144,9 +147,9 @@ int __cdecl main()
     }
 
 #ifdef USE_STRUCTURED_BUFFERS
-    CreateStructuredBuffer( g_pDevice, sizeof(float), NUM_ELEMENTS, &g_vBuf0[0], &g_pBuf0 );
-    CreateStructuredBuffer( g_pDevice, sizeof(float), NUM_ELEMENTS, &g_vBuf1[0], &g_pBuf1 );
-    CreateStructuredBuffer( g_pDevice, sizeof(float), NUM_ELEMENTS, nullptr, &g_pBufResult );
+    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, &g_vBuf0[0], &g_pBuf0 );
+    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, &g_vBuf1[0], &g_pBuf1 );
+    CreateStructuredBuffer( g_pDevice, ComponentSize * sizeof(float), NUM_ELEMENTS / ComponentSize, nullptr, &g_pBufResult );
 
     // Create the constant buffer
     D3D11_BUFFER_DESC bd = {};
