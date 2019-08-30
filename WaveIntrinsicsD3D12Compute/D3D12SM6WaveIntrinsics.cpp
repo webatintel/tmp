@@ -64,7 +64,9 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_tileN(32),
     m_tileK(32),
     m_componentSize(4),
-    m_kernelType(KERNELTYPE::USE_SIMD_8X4_1X8)
+    m_kernelType(KERNELTYPE::USE_SIMD_8X4_1X8),
+    m_frameCount(1),
+    m_dispatchCountPerFrame(20)
 {
     for (int i = 0; i < argc; ++i)
     {
@@ -73,7 +75,9 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
         {
             std::cout << "-h, --help     Show this help text and exit." << std::endl;
             std::cout << "-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
-            std::cout << "    Determines which algorithm you use for matrix multiplication." << std::endl;
+            std::cout << "    Determines which algorithm you use for matrix multiplication. By default, SIMD_8X4_1X8 will be run." << std::endl;
+            std::cout << "--num-dispatch int_value     Determines how many dispatch commands will be executed per command list." << std::endl;
+            std::cout << "--num-frame int_value        Determines how many command lists will be executed." << std::endl;
             m_kernelType = KERNELTYPE::NONE;
             return;
         }
@@ -81,6 +85,26 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
         {
             std::string kernel = argv[i++ + 1];
             m_kernelType = GetKernalVersion(kernel);
+        }
+        if (cmd == "--num-dispatch")
+        {
+            char *pNext;
+            m_dispatchCountPerFrame = strtol(argv[i++ + 1], &pNext, 10);
+            if (m_dispatchCountPerFrame <= 0)
+            {
+                std::cerr << "Dispatch count should be larger than 0." << std::endl;
+                return;
+            }
+        }
+        if (cmd == "--num-frame")
+        {
+            char *pNext;
+            m_frameCount = strtol(argv[i++ + 1], &pNext, 10);
+            if (m_dispatchCountPerFrame <= 0)
+            {
+                std::cerr << "Frame count should be larger than 0." << std::endl;
+                return;
+            }
         }
     }
 }
@@ -518,7 +542,7 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
     // Create the query result buffer.
     {
         // Two timestamps for each frame.
-        const UINT resultCount = 2 * FrameCount * DispatchCountPerFrame;
+        const UINT resultCount = 2 * m_frameCount * m_dispatchCountPerFrame;
         const UINT resultBufferSize = resultCount * sizeof(UINT64);
         D3D12_QUERY_HEAP_DESC timestampHeapDesc = {};
         timestampHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
@@ -548,7 +572,7 @@ void D3D12SM6WaveIntrinsics::RenderScene()
 {
     double flops = 2 * m_M * m_N * m_K;
     double total = 0.0;
-    for (int it = 0; it < FrameCount; it++)
+    for (int it = 0; it < m_frameCount; it++)
     {
         // This will restart the command list and start a new record.
         ThrowIfFailed(m_computeAllocator->Reset());
@@ -565,7 +589,7 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         m_commandList->SetComputeRootDescriptorTable(1, srvHandle);
         m_commandList->SetComputeRootDescriptorTable(2, uavHandle);
 
-        for (int c = 0; c < DispatchCountPerFrame; c++)
+        for (int c = 0; c < m_dispatchCountPerFrame; c++)
         {
             // Get a timestamp at the before and after dispatch command.
             const UINT timestampHeapIndex = 2 * it + 2 * c;
@@ -585,16 +609,16 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         auto diff = end - start;
         total += std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
     }
-    double avg_time = total / (FrameCount) / DispatchCountPerFrame;
+    double avg_time = total / (m_frameCount) / m_dispatchCountPerFrame;
     double total_kernel = 0;
     double minTime = 1e100;
 
     // Get the timestamp values from the result buffers.
     D3D12_RANGE readRange = {};
     const D3D12_RANGE emptyRange = {};
-    for (UINT i = 0; i < FrameCount; i++)
+    for (UINT i = 0; i < m_frameCount; i++)
     {
-    for (UINT j = 0; j < DispatchCountPerFrame; j++)
+    for (UINT j = 0; j < m_dispatchCountPerFrame; j++)
 	{
         readRange.Begin = (2 * i + 2 * j) * sizeof(UINT64);
         readRange.End = readRange.Begin + 2 * sizeof(UINT64);
@@ -611,7 +635,7 @@ void D3D12SM6WaveIntrinsics::RenderScene()
         // Calculate the GPU execution time in microseconds.
         const UINT64 gpuTimeMS =  (timeStampDelta * 1000) / m_timestampFrequency;
         // Don't consider the first dispatch time.
-        if (j > 0 || (DispatchCountPerFrame == 1))
+        if (j > 0 || (m_dispatchCountPerFrame == 1))
         {
             if (gpuTimeMS < minTime)
                 minTime = gpuTimeMS;
@@ -620,14 +644,14 @@ void D3D12SM6WaveIntrinsics::RenderScene()
     }
     }
     double avg_kernel = 0;
-    if (DispatchCountPerFrame > 1)
+    if (m_dispatchCountPerFrame > 1)
     {
         // Don't consider the first dispatch time.
-        avg_kernel = total_kernel / FrameCount / (DispatchCountPerFrame - 1);
+        avg_kernel = total_kernel / m_frameCount / (m_dispatchCountPerFrame - 1);
     }
     else
     {
-        avg_kernel = total_kernel / FrameCount / DispatchCountPerFrame;
+        avg_kernel = total_kernel / m_frameCount / m_dispatchCountPerFrame;
     }
     printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n",
            flops / avg_time / 10000 / 100,
@@ -678,8 +702,8 @@ void D3D12SM6WaveIntrinsics::RenderScene()
     }
     printf("The result is GPU: %f, CPU: %f\n", result, acc);
 #endif // PRINT_DATA
-    printf("Press 'Enter' to close the window.\n");
-    getchar();
+//    printf("Press 'Enter' to close the window.\n");
+//    getchar();
 }
 
 // Wait for pending GPU work to complete.

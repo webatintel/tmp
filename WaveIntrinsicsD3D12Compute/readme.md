@@ -6,4 +6,6 @@ By default, the wave intrinsics(SIMD_8X4_1X8) algorithm will be executed with Di
 
 -h, --help     Show this help text and exit.
 -k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16
-    Determines which algorithm you use for matrix multiplication.
+    Determines which algorithm you use for matrix multiplication. By default, SIMD_8X4_1X8 will be run.
+--num-dispatch int_value     Determines how many dispatch commands will be executed per command list.
+--num-frame int_value        Determines how many command lists will be executed.
