@@ -16,12 +16,9 @@
 #include "SIMD_4x1_1x8_cs.hlsl.h"
 #include "SIMD_16x2_1x8_cs.hlsl.h"
 #include <chrono>
+#include <iostream>
 
 #define PRINT_DATA
-// Comment out all definition of USE_SIMD*. Shared memory algorithm will be used.
-#define USE_SIMD_8X4_1X8
-//#define USE_SIMD_4x1_1x8
-//#define USE_SIMD_16x2_1x8
 
 namespace
 {
@@ -55,7 +52,7 @@ static HRESULT EnableExperimentalShaderModels() {
     return D3D12EnableExperimentalFeatures(1, &D3D12ExperimentalShaderModelsID, nullptr, nullptr);
 }
 
-D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics() :
+D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_frameIndex(0),
     m_pCbSrvDataBegin(nullptr),
     m_srvUavDescriptorSize(0),
@@ -63,34 +60,89 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics() :
     m_M(1024),
     m_N(1024),
     m_K(1024),
-    m_tileM(32),
-    m_tileN(128),
-    m_tileK(64),
-    m_componentSize(4)
+    m_tileM(8),
+    m_tileN(32),
+    m_tileK(32),
+    m_componentSize(4),
+    m_kernelType(KERNELTYPE::USE_SIMD_8X4_1X8)
 {
+    for (int i = 0; i < argc; ++i)
+    {
+        std::string cmd(argv[i]);
+        if (cmd == "-h" || cmd == "--help")
+        {
+            std::cout << "-h, --help     Show this help text and exit." << std::endl;
+            std::cout << "-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
+            std::cout << "    Determines which algorithm you use for matrix multiplication." << std::endl;
+            m_kernelType = KERNELTYPE::NONE;
+            return;
+        }
+        if (cmd == "-k" || cmd == "--kernel")
+        {
+            std::string kernel = argv[i++ + 1];
+            m_kernelType = GetKernalVersion(kernel);
+        }
+    }
+}
+
+D3D12SM6WaveIntrinsics::KERNELTYPE D3D12SM6WaveIntrinsics::GetKernalVersion(const std::string& kernal)
+{
+    if (kernal == "SIMD_8X4_1X8")
+    {
+        return KERNELTYPE::USE_SIMD_8X4_1X8;
+    }
+    else if (kernal == "SIMD_4x1_1x8")
+    {
+        return KERNELTYPE::USE_SIMD_4x1_1x8;
+    }
+    else if (kernal == "SIMD_16x2_1x8")
+    {
+        return KERNELTYPE::USE_SIMD_16x2_1x8;
+    }
+    else if (kernal == "SLM_8X8_4X16")
+    {
+        return KERNELTYPE::USE_SLM_8X8_4X16;
+    } else
+    {
+        return KERNELTYPE::UNSUPPORTED;
+    }
 }
 
 void D3D12SM6WaveIntrinsics::Start()
 {
-#ifdef USE_SIMD_8X4_1X8
-    m_tileM = 8;
-    m_tileN = 32;
-    m_tileK = 32;
-    m_componentSize = 4;
-#endif  // USE_SIMD_8X4_1X8
-#ifdef USE_SIMD_4x1_1x8
-    m_tileM = 4;
-    m_tileN = 8;
-    m_tileK = 8;
-    m_componentSize = 1;
-#endif // USE_SIMD_4x1_1x8
-#ifdef USE_SIMD_16x2_1x8
-    m_tileM = 16;
-    m_tileK = 16;
-    m_tileN = 16;
-    m_componentSize = 2;
-#endif // USE_SIMD_16x2_1x8
-
+    switch (m_kernelType)
+    {
+        case D3D12SM6WaveIntrinsics::USE_SIMD_8X4_1X8:
+            m_tileM = 8;
+            m_tileN = 32;
+            m_tileK = 32;
+            m_componentSize = 4;
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SIMD_4x1_1x8:
+            m_tileM = 4;
+            m_tileN = 8;
+            m_tileK = 8;
+            m_componentSize = 1;
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SIMD_16x2_1x8:
+            m_tileM = 16;
+            m_tileK = 16;
+            m_tileN = 16;
+            m_componentSize = 2;
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SLM_8X8_4X16:
+            m_tileM = 32;
+            m_tileK = 64;
+            m_tileN = 128;
+            m_componentSize = 4;
+            break;
+        case D3D12SM6WaveIntrinsics::NONE:
+            return;
+        case D3D12SM6WaveIntrinsics::UNSUPPORTED:
+        default:
+            std::cout << "This kernel type is invalid. The supported kernel type is SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
+            return;
+    }
 
     LoadPipeline();
     LoadAssets();
@@ -256,19 +308,26 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
     // Create the compute pipeline state, which includes compiling and loading shaders.
     D3D12_COMPUTE_PIPELINE_STATE_DESC descComputePSO = {};
     descComputePSO.pRootSignature = m_computeRootSignature.Get();
-#ifdef USE_SIMD_8X4_1X8
-    descComputePSO.CS = { g_SIMD_8X4_1X8_CS, sizeof(g_SIMD_8X4_1X8_CS) };
-#else
-#ifdef USE_SIMD_4x1_1x8
-    descComputePSO.CS = { g_SIMD_4x1_1x8_CS, sizeof(g_SIMD_4x1_1x8_CS) };
-#else
-#ifdef USE_SIMD_16x2_1x8
-    descComputePSO.CS = { g_SIMD_16x2_1x8_CS, sizeof(g_SIMD_16x2_1x8_CS) };
-#else
-    descComputePSO.CS = { g_SLM_8X8_4X16_CS, sizeof(g_SLM_8X8_4X16_CS) };
-#endif // USE_SIMD_16x2_1x8
-#endif // USE_SIMD_4x1_1x8
-#endif // USE_SIMD_8X4_1X8
+    switch (m_kernelType)
+    {
+        case D3D12SM6WaveIntrinsics::USE_SIMD_8X4_1X8:
+            descComputePSO.CS = { g_SIMD_8X4_1X8_CS, sizeof(g_SIMD_8X4_1X8_CS) };
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SIMD_4x1_1x8:
+            descComputePSO.CS = { g_SIMD_4x1_1x8_CS, sizeof(g_SIMD_4x1_1x8_CS) };
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SIMD_16x2_1x8:
+            descComputePSO.CS = { g_SIMD_16x2_1x8_CS, sizeof(g_SIMD_16x2_1x8_CS) };
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SLM_8X8_4X16:
+            descComputePSO.CS = { g_SLM_8X8_4X16_CS, sizeof(g_SLM_8X8_4X16_CS) };
+            break;
+        case D3D12SM6WaveIntrinsics::NONE:
+        case D3D12SM6WaveIntrinsics::UNSUPPORTED:
+        default:
+            return;
+    }
+
     ThrowIfFailed(m_d3d12Device->CreateComputePipelineState(&descComputePSO, IID_PPV_ARGS(&m_computePSO)));
     m_computePSO->SetName(L"Compute PSO");
 
@@ -307,7 +366,7 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
         bufferData.pData = &m_constantBufferData;
         bufferData.RowPitch = sizeof(m_constantBufferData);
         UpdateSubresources(m_commandList.Get(), m_constantBuffer.Get(), m_intermediateBuffer.Get(), 0, 0, 1, &bufferData);
-        ResourceBarrier(m_commandList.Get(), m_constantBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        ResourceBarrier(m_commandList.Get(), m_constantBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON);
     }
 
     LoadSizeDependentResources();

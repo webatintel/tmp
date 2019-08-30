@@ -4,6 +4,6 @@ Requirement:
 
 By default, the wave intrinsics(SIMD_8X4_1X8) algorithm will be executed with DispatchCountPerFrame = 20.
 
-To switch to shared memory(SLM_8X8_4X16) algorithm, comment out '#define USE_SIMD_8X4_1X8' in D3D12SM6WaveIntrinsics.cpp. And run again.
-
-To change dispatch count, modify the value of DispatchCountPerFrame in D3D12SM6WaveIntrinsics.h.
+-h, --help     Show this help text and exit.
+-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16
+    Determines which algorithm you use for matrix multiplication.

@@ -13,10 +13,9 @@
 #include "D3D12SM6WaveIntrinsics.h"
 
 _Use_decl_annotations_
-int main()
+int main(int argc, char *argv[])
 {
-    D3D12SM6WaveIntrinsics sample;
-	sample.Start();
-	return 0;
-  //  return Win32Application::Run(&sample, hInstance, nCmdShow);
+    D3D12SM6WaveIntrinsics sample(argc, argv);
+    sample.Start();
+    return 0;
 }

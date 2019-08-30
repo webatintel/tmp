@@ -39,7 +39,7 @@ private:
 class D3D12SM6WaveIntrinsics
 {
 public:
-    D3D12SM6WaveIntrinsics();
+    D3D12SM6WaveIntrinsics(int argc, char *argv[]);
     inline ID3D12Device* GetDevice() { return m_d3d12Device.Get(); }
     inline ID3D12CommandQueue* GetCommandQueue() { return m_commandQueue.Get(); }
 	inline void ThrowIfFailed(HRESULT hr)
@@ -62,6 +62,16 @@ private:
         int K;
         int N;
         int TILE_K;
+    };
+
+    enum KERNELTYPE : short
+    {
+        NONE,
+        USE_SIMD_8X4_1X8,
+        USE_SIMD_4x1_1x8,
+        USE_SIMD_16x2_1x8,
+        USE_SLM_8X8_4X16,
+        UNSUPPORTED
     };
 
     // Pipeline objects.
@@ -106,7 +116,9 @@ private:
 	UINT m_componentSize;
 	std::vector<float> buf1Data;
 	std::vector<float> buf2Data;
+	KERNELTYPE m_kernelType;
 
+	KERNELTYPE GetKernalVersion(const std::string& kernel);
 	void GetHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);
     void CreateDevice(const ComPtr<IDXGIFactory4>& factory);
     void LoadPipeline();
