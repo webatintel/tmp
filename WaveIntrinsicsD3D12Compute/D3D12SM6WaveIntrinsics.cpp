@@ -250,6 +250,9 @@ void D3D12SM6WaveIntrinsics::LoadPipeline()
     // Query the level of support of Wave Intrinsics.
     ThrowIfFailed(m_d3d12Device->CheckFeatureSupport((D3D12_FEATURE)D3D12_FEATURE_D3D12_OPTIONS1, &m_WaveIntrinsicsSupport, sizeof(m_WaveIntrinsicsSupport)));
 
+    std::cout << "WaveLaneCountMin: " << m_WaveIntrinsicsSupport.WaveLaneCountMin
+              << ", TotalLaneCount: " << m_WaveIntrinsicsSupport.TotalLaneCount
+              << ", WaveLaneCountMax:" << m_WaveIntrinsicsSupport.WaveLaneCountMax << std::endl;
     // If the device doesn't support SM6 or Wave Intrinsics, try enabling the experimental feature for Shader Model 6 and creating the device again.
     if (shaderModelSupport.HighestShaderModel != D3D_SHADER_MODEL_6_0 || m_WaveIntrinsicsSupport.WaveOps != TRUE)
     {
