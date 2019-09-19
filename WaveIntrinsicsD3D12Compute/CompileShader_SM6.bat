@@ -29,4 +29,6 @@ ECHO ON
 @IF %ERRORLEVEL% NEQ 0 (EXIT /b %ERRORLEVEL%)
 %dxcCmd% /D USE_SIMD_8X4_1X8 /Zi /E"main" /Vn"g_SIMD_8X4_1X8_CS" /Tcs_6_0 /Fh"SIMD_8X4_1X8_cs.hlsl.h" /nologo BasicCompute12.hlsl
 @IF %ERRORLEVEL% NEQ 0 (EXIT /b %ERRORLEVEL%)
+%dxcCmd% /D USE_SIMD_16x1_1x16 /Zi /E"main" /Vn"g_SIMD_16x1_1x16_CS" /Tcs_6_0 /Fh"SIMD_16x1_1x16_cs.hlsl.h" /nologo BasicCompute12.hlsl
+@IF %ERRORLEVEL% NEQ 0 (EXIT /b %ERRORLEVEL%)
 ECHO Done.

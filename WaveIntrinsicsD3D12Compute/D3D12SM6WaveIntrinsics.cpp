@@ -15,6 +15,7 @@
 #include "SIMD_8X4_1X8_cs.hlsl.h"
 #include "SIMD_4x1_1x8_cs.hlsl.h"
 #include "SIMD_16x2_1x8_cs.hlsl.h"
+#include "SIMD_16x1_1x16_cs.hlsl.h"
 #include <chrono>
 #include <iostream>
 
@@ -74,7 +75,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
         if (cmd == "-h" || cmd == "--help")
         {
             std::cout << "-h, --help     Show this help text and exit." << std::endl;
-            std::cout << "-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
+            std::cout << "-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_16x1_1x16 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
             std::cout << "    Determines which algorithm you use for matrix multiplication. By default, SIMD_8X4_1X8 will be run." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many dispatch commands will be executed per command list." << std::endl;
             std::cout << "--num-frame int_value        Determines how many command lists will be executed." << std::endl;
@@ -123,6 +124,10 @@ D3D12SM6WaveIntrinsics::KERNELTYPE D3D12SM6WaveIntrinsics::GetKernalVersion(cons
     {
         return KERNELTYPE::USE_SIMD_16x2_1x8;
     }
+    else if (kernal == "SIMD_16x1_1x16")
+    {
+        return KERNELTYPE::USE_SIMD_16x1_1x16;
+    }
     else if (kernal == "SLM_8X8_4X16")
     {
         return KERNELTYPE::USE_SLM_8X8_4X16;
@@ -154,6 +159,12 @@ void D3D12SM6WaveIntrinsics::Start()
             m_tileN = 16;
             m_componentSize = 2;
             break;
+        case D3D12SM6WaveIntrinsics::USE_SIMD_16x1_1x16:
+            m_tileM = 16;
+            m_tileK = 16;
+            m_tileN = 16;
+            m_componentSize = 1;
+            break;
         case D3D12SM6WaveIntrinsics::USE_SLM_8X8_4X16:
             m_tileM = 32;
             m_tileK = 64;
@@ -164,7 +175,7 @@ void D3D12SM6WaveIntrinsics::Start()
             return;
         case D3D12SM6WaveIntrinsics::UNSUPPORTED:
         default:
-            std::cout << "This kernel type is invalid. The supported kernel type is SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
+            std::cout << "This kernel type is invalid. The supported kernel type is SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_16x1_1x16 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
             return;
     }
 
@@ -345,6 +356,9 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
             break;
         case D3D12SM6WaveIntrinsics::USE_SIMD_16x2_1x8:
             descComputePSO.CS = { g_SIMD_16x2_1x8_CS, sizeof(g_SIMD_16x2_1x8_CS) };
+            break;
+        case D3D12SM6WaveIntrinsics::USE_SIMD_16x1_1x16:
+            descComputePSO.CS = { g_SIMD_16x1_1x16_CS, sizeof(g_SIMD_16x1_1x16_CS) };
             break;
         case D3D12SM6WaveIntrinsics::USE_SLM_8X8_4X16:
             descComputePSO.CS = { g_SLM_8X8_4X16_CS, sizeof(g_SLM_8X8_4X16_CS) };

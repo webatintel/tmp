@@ -707,3 +707,137 @@ void main(CS_INPUT input)
     dst[dst_write0] = dot03;  dst_write0 += width1;
 }
 #endif  // USE_SIMD_4x1_1x8
+
+#ifdef USE_SIMD_16x1_1x16
+// 16x1_1x16
+StructuredBuffer<float> src0 : register(t0);
+StructuredBuffer<float> src1 : register(t1);
+RWStructuredBuffer<float> dst : register(u0);
+
+static int VEC_SIZE = 1;
+static int TILE_M = 16;
+static int TILE_N = 16;
+// static int TILE_K = 16;
+
+[numthreads(16, 1, 1)]
+void main(CS_INPUT input)
+{
+    initGLBuiltins(input);
+    int width0 = K / VEC_SIZE;
+    int width1 = N / VEC_SIZE;
+
+    int group_x = int(gl_WorkGroupID.x);
+    int group_y = int(gl_WorkGroupID.y);
+    int local_x = int(gl_LocalInvocationID.x);
+
+    // Result ctile is M rows x N columns
+    // M = 16, we have 1 row of work-items, so we need 16/1 = 16 results down
+    // N = 16, we have 16 columns of work-items, so we need 16/16 = 1 result across
+
+    float  dot[16];
+    for (int i = 0; i < 16; i++)
+    {
+        dot[i] = 0.f;
+    }
+
+    int dst_write0 = local_x + ( group_x * ( TILE_N / VEC_SIZE ) ) + ( group_y * TILE_M ) * width1;
+
+    // Src0 is directly used as atile.
+    // It starts at the left side of src0 and walks across.
+    // atile is M rows x K columns.
+    int src0_read = local_x + ( group_y * TILE_M ) * width0;
+
+    // Src1 is directly used as btile.
+    // It starts at the top of src1 and walks down.
+    // btile is K rows x N columns.
+    int src1_read0 = local_x + ( group_x * ( TILE_N / VEC_SIZE ) );
+
+    // Walk ACROSS src0 and DOWN src1:
+    int w = 0;
+    do
+    {
+        // We want to load atile, which is M rows x K columns
+        // M = 64, we have 4 row of work-items, so each work-item must load 64/4 = 16 rows
+        // K = 16, we have 16 columns of work-items, so each work-item must load 16/16 = 1 columns
+        float2  arow;
+
+        // Now load btile, which is K rows x N columns
+        // K = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // N = 16, we have 16 columns of work-items, so each work-item must load 16/16 = 1 columns
+        float2  brow0 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow4 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow5 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow6 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow7 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow8 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow9 = src1[src1_read0];  src1_read0 += width1;
+        float2  browa = src1[src1_read0];  src1_read0 += width1;
+        float2  browb = src1[src1_read0];  src1_read0 += width1;
+        float2  browc = src1[src1_read0];  src1_read0 += width1;
+        float2  browd = src1[src1_read0];  src1_read0 += width1;
+        float2  browe = src1[src1_read0];  src1_read0 += width1;
+        float2  browf = src1[src1_read0];  src1_read0 += width1;
+
+#define MM_DOT_PRODUCT( _row, _dot )   \
+        arow = src0[src0_read + _row * width0 ];                           \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 0 )), brow0, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 1 )), brow1, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 2 )), brow2, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 3 )), brow3, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 4 )), brow4, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 5 )), brow5, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 6 )), brow6, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 7 )), brow7, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 8 )), brow8, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 9 )), brow9, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 10 )), browa, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 11 )), browb, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 12 )), browc, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 13 )), browd, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 14 )), browe, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 15 )), browf, _dot );
+
+        MM_DOT_PRODUCT( 0x0, dot[0] );
+        MM_DOT_PRODUCT( 0x1, dot[1] );
+        MM_DOT_PRODUCT( 0x2, dot[2] );
+        MM_DOT_PRODUCT( 0x3, dot[3] );
+        MM_DOT_PRODUCT( 0x4, dot[4] );
+        MM_DOT_PRODUCT( 0x5, dot[5] );
+        MM_DOT_PRODUCT( 0x6, dot[6] );
+        MM_DOT_PRODUCT( 0x7, dot[7] );
+        MM_DOT_PRODUCT( 0x8, dot[8] );
+        MM_DOT_PRODUCT( 0x9, dot[9] );
+        MM_DOT_PRODUCT( 0xa, dot[10] );
+        MM_DOT_PRODUCT( 0xb, dot[11] );
+        MM_DOT_PRODUCT( 0xc, dot[12] );
+        MM_DOT_PRODUCT( 0xd, dot[13] );
+        MM_DOT_PRODUCT( 0xe, dot[14] );
+        MM_DOT_PRODUCT( 0xf, dot[15] );
+
+#undef MM_DOT_PRODUCT
+        src0_read += TILE_K / VEC_SIZE;
+        w += TILE_K / VEC_SIZE;
+    }
+    while( w < width0 );
+
+    dst[dst_write0] = dot[0];  dst_write0 += width1;
+    dst[dst_write0] = dot[1];  dst_write0 += width1;
+    dst[dst_write0] = dot[2];  dst_write0 += width1;
+    dst[dst_write0] = dot[3];  dst_write0 += width1;
+    dst[dst_write0] = dot[4];  dst_write0 += width1;
+    dst[dst_write0] = dot[5];  dst_write0 += width1;
+    dst[dst_write0] = dot[6];  dst_write0 += width1;
+    dst[dst_write0] = dot[7];  dst_write0 += width1;
+    dst[dst_write0] = dot[8];  dst_write0 += width1;
+    dst[dst_write0] = dot[9];  dst_write0 += width1;
+    dst[dst_write0] = dot[10];  dst_write0 += width1;
+    dst[dst_write0] = dot[11];  dst_write0 += width1;
+    dst[dst_write0] = dot[12];  dst_write0 += width1;
+    dst[dst_write0] = dot[13];  dst_write0 += width1;
+    dst[dst_write0] = dot[14];  dst_write0 += width1;
+    dst[dst_write0] = dot[15];  dst_write0 += width1;
+}
+#endif  // USE_SIMD_16x1_1x16

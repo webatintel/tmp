@@ -67,6 +67,7 @@ private:
         USE_SIMD_8X4_1X8,
         USE_SIMD_4x1_1x8,
         USE_SIMD_16x2_1x8,
+        USE_SIMD_16x1_1x16,
         USE_SLM_8X8_4X16,
         UNSUPPORTED
     };
