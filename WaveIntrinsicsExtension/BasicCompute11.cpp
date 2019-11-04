@@ -24,8 +24,8 @@
 #define USE_STRUCTURED_BUFFERS
 
 // Please choose one algorithm and comment out the other two. Only one algothrm is allowed each time.
-//#define USE_SLM_8X8_4X16
-#define USE_SIMD_8X4_1X8
+#define USE_SLM_8X8_4X16
+//#define USE_SIMD_8X4_1X8
 //#define USE_SIMD_16x2_1x8
 
 // Commenting out the following line will result the shader compilation becomes very slow. However,
