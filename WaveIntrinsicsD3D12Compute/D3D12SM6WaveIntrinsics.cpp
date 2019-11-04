@@ -66,6 +66,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_tileK(32),
     m_componentSize(4),
     m_kernelType(KERNELTYPE::USE_SIMD_8X4_1X8),
+    m_useFxc(false),
     m_frameCount(1),
     m_dispatchCountPerFrame(20)
 {
@@ -79,6 +80,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
             std::cout << "    Determines which algorithm you use for matrix multiplication. By default, SIMD_8X4_1X8 will be run." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many dispatch commands will be executed per command list." << std::endl;
             std::cout << "--num-frame int_value        Determines how many command lists will be executed." << std::endl;
+            std::cout << "--use-fxc                    Use fxc to compile shader. Don't work for SIMD shader" << std::endl;
             m_kernelType = KERNELTYPE::NONE;
             return;
         }
@@ -106,6 +108,10 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
                 std::cerr << "Frame count should be larger than 0." << std::endl;
                 return;
             }
+        }
+        if (cmd == "--use-fxc")
+        {
+            m_useFxc = true;
         }
     }
 }
@@ -361,8 +367,20 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
             descComputePSO.CS = { g_SIMD_16x1_1x16_CS, sizeof(g_SIMD_16x1_1x16_CS) };
             break;
         case D3D12SM6WaveIntrinsics::USE_SLM_8X8_4X16:
-            descComputePSO.CS = { g_SLM_8X8_4X16_CS, sizeof(g_SLM_8X8_4X16_CS) };
+        {
+            if (m_useFxc)
+            {
+                ComPtr<ID3DBlob> computeShader;
+                UINT compileFlags = 0;
+                ThrowIfFailed(D3DCompileFromFile(L"SLM_8X8_4X16.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
+                descComputePSO.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
+            }
+            else
+            {
+                descComputePSO.CS = { g_SLM_8X8_4X16_CS, sizeof(g_SLM_8X8_4X16_CS) };
+            }
             break;
+        }
         case D3D12SM6WaveIntrinsics::NONE:
         case D3D12SM6WaveIntrinsics::UNSUPPORTED:
         default:

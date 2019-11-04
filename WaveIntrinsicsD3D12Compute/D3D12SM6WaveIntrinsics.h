@@ -115,6 +115,7 @@ private:
 	std::vector<float> buf1Data;
 	std::vector<float> buf2Data;
 	KERNELTYPE m_kernelType;
+	bool m_useFxc; // This flag only works for shared memory algorithm.
     UINT m_frameCount = 1;
     // The performance will be improved if we increase the dispatch number to a higher value. Such as 200.
     UINT m_dispatchCountPerFrame = 20;
