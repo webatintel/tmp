@@ -65,10 +65,10 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_tileN(32),
     m_tileK(32),
     m_componentSize(4),
-    m_kernelType(KERNELTYPE::USE_SLM_8X8_4X16),
+    m_kernelType(KERNELTYPE::USE_SIMD_16x1_1x16),
     m_useFxc(false),
     m_frameCount(1),
-    m_dispatchCountPerFrame(20)
+    m_dispatchCountPerFrame(2)
 {
     for (int i = 0; i < argc; ++i)
     {

@@ -757,48 +757,48 @@ void main(CS_INPUT input)
     do
     {
         // We want to load atile, which is M rows x K columns
-        // M = 64, we have 4 row of work-items, so each work-item must load 64/4 = 16 rows
+        // M = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
         // K = 16, we have 16 columns of work-items, so each work-item must load 16/16 = 1 columns
-        float2  arow;
+        float  arow;
 
         // Now load btile, which is K rows x N columns
         // K = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
         // N = 16, we have 16 columns of work-items, so each work-item must load 16/16 = 1 columns
-        float2  brow0 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow1 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow2 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow3 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow4 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow5 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow6 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow7 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow8 = src1[src1_read0];  src1_read0 += width1;
-        float2  brow9 = src1[src1_read0];  src1_read0 += width1;
-        float2  browa = src1[src1_read0];  src1_read0 += width1;
-        float2  browb = src1[src1_read0];  src1_read0 += width1;
-        float2  browc = src1[src1_read0];  src1_read0 += width1;
-        float2  browd = src1[src1_read0];  src1_read0 += width1;
-        float2  browe = src1[src1_read0];  src1_read0 += width1;
-        float2  browf = src1[src1_read0];  src1_read0 += width1;
+        float  brow0 = src1[src1_read0];  src1_read0 += width1;
+        float  brow1 = src1[src1_read0];  src1_read0 += width1;
+        float  brow2 = src1[src1_read0];  src1_read0 += width1;
+        float  brow3 = src1[src1_read0];  src1_read0 += width1;
+        float  brow4 = src1[src1_read0];  src1_read0 += width1;
+        float  brow5 = src1[src1_read0];  src1_read0 += width1;
+        float  brow6 = src1[src1_read0];  src1_read0 += width1;
+        float  brow7 = src1[src1_read0];  src1_read0 += width1;
+        float  brow8 = src1[src1_read0];  src1_read0 += width1;
+        float  brow9 = src1[src1_read0];  src1_read0 += width1;
+        float  browa = src1[src1_read0];  src1_read0 += width1;
+        float  browb = src1[src1_read0];  src1_read0 += width1;
+        float  browc = src1[src1_read0];  src1_read0 += width1;
+        float  browd = src1[src1_read0];  src1_read0 += width1;
+        float  browe = src1[src1_read0];  src1_read0 += width1;
+        float  browf = src1[src1_read0];  src1_read0 += width1;
 
 #define MM_DOT_PRODUCT( _row, _dot )   \
         arow = src0[src0_read + _row * width0 ];                           \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 0 )), brow0, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 1 )), brow1, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 2 )), brow2, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 3 )), brow3, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 4 )), brow4, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 5 )), brow5, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 6 )), brow6, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 7 )), brow7, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 8 )), brow8, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 9 )), brow9, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 10 )), browa, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 11 )), browb, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 12 )), browc, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 13 )), browd, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 14 )), browe, _dot ); \
-        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 15 )), browf, _dot );
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 0 )), brow0, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 1 )), brow1, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 2 )), brow2, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 3 )), brow3, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 4 )), brow4, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 5 )), brow5, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 6 )), brow6, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 7 )), brow7, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 8 )), brow8, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 9 )), brow9, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 10 )), browa, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 11 )), browb, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 12 )), browc, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 13 )), browd, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 14 )), browe, _dot ); \
+        _dot = mad( (float)(intel_sub_group_shuffle( arow, 15 )), browf, _dot );
 
         MM_DOT_PRODUCT( 0x0, dot[0] );
         MM_DOT_PRODUCT( 0x1, dot[1] );
