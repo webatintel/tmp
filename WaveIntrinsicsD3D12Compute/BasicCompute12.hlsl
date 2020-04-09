@@ -781,43 +781,27 @@ void main(CS_INPUT input)
         float  browe = src1[src1_read0];  src1_read0 += width1;
         float  browf = src1[src1_read0];  src1_read0 += width1;
 
-#define MM_DOT_PRODUCT( _row, _dot )   \
-        arow = src0[src0_read + _row * width0 ];                           \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 0 )), brow0, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 1 )), brow1, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 2 )), brow2, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 3 )), brow3, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 4 )), brow4, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 5 )), brow5, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 6 )), brow6, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 7 )), brow7, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 8 )), brow8, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 9 )), brow9, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 10 )), browa, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 11 )), browb, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 12 )), browc, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 13 )), browd, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 14 )), browe, _dot ); \
-        _dot = mad( (float)(intel_sub_group_shuffle( arow, 15 )), browf, _dot );
+		for (int i = 0; i < 16; i++)
+		{
+        arow = src0[src0_read + i * width0 ];
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 0 )), brow0, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 1 )), brow1, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 2 )), brow2, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 3 )), brow3, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 4 )), brow4, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 5 )), brow5, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 6 )), brow6, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 7 )), brow7, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 8 )), brow8, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 9 )), brow9, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 10 )), browa, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 11 )), browb, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 12 )), browc, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 13 )), browd, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 14 )), browe, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 15 )), browf, dot[i] );
+		}
 
-        MM_DOT_PRODUCT( 0x0, dot[0] );
-        MM_DOT_PRODUCT( 0x1, dot[1] );
-        MM_DOT_PRODUCT( 0x2, dot[2] );
-        MM_DOT_PRODUCT( 0x3, dot[3] );
-        MM_DOT_PRODUCT( 0x4, dot[4] );
-        MM_DOT_PRODUCT( 0x5, dot[5] );
-        MM_DOT_PRODUCT( 0x6, dot[6] );
-        MM_DOT_PRODUCT( 0x7, dot[7] );
-        MM_DOT_PRODUCT( 0x8, dot[8] );
-        MM_DOT_PRODUCT( 0x9, dot[9] );
-        MM_DOT_PRODUCT( 0xa, dot[10] );
-        MM_DOT_PRODUCT( 0xb, dot[11] );
-        MM_DOT_PRODUCT( 0xc, dot[12] );
-        MM_DOT_PRODUCT( 0xd, dot[13] );
-        MM_DOT_PRODUCT( 0xe, dot[14] );
-        MM_DOT_PRODUCT( 0xf, dot[15] );
-
-#undef MM_DOT_PRODUCT
         src0_read += TILE_K / VEC_SIZE;
         w += TILE_K / VEC_SIZE;
     }
