@@ -66,7 +66,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_tileN(32),
     m_tileK(32),
     m_componentSize(4),
-    m_kernelType(KERNELTYPE::USE_BYTEADDRESS_BUFFER),
+    m_kernelType(KERNELTYPE::USE_SIMD_8X4_1X8),
     m_useFxc(false),
     m_frameCount(1),
     m_dispatchCountPerFrame(2)
@@ -77,7 +77,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
         if (cmd == "-h" || cmd == "--help")
         {
             std::cout << "-h, --help     Show this help text and exit." << std::endl;
-            std::cout << "-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_16x1_1x16 | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
+            std::cout << "-k, --kernel SIMD_8X4_1X8 | SIMD_16x2_1x8 | SIMD_16x1_1x16 | SIMD_16x1_1x16_ByteAddressBuffer | SIMD_4x1_1x8 | SLM_8X8_4X16" << std::endl;
             std::cout << "    Determines which algorithm you use for matrix multiplication. By default, SIMD_8X4_1X8 will be run." << std::endl;
             std::cout << "--num-dispatch int_value     Determines how many dispatch commands will be executed per command list." << std::endl;
             std::cout << "--num-frame int_value        Determines how many command lists will be executed." << std::endl;
@@ -139,7 +139,7 @@ D3D12SM6WaveIntrinsics::KERNELTYPE D3D12SM6WaveIntrinsics::GetKernalVersion(cons
     {
         return KERNELTYPE::USE_SLM_8X8_4X16;
     }
-    else if (kernal == "BYTEADDRESS_BUFFER")
+    else if (kernal == "SIMD_16x1_1x16_ByteAddressBuffer")
     {
         return KERNELTYPE::USE_BYTEADDRESS_BUFFER;
     } else
