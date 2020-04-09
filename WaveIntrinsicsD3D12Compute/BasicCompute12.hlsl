@@ -825,3 +825,121 @@ void main(CS_INPUT input)
     dst[dst_write0] = dot[15];  dst_write0 += width1;
 }
 #endif  // USE_SIMD_16x1_1x16
+
+#ifdef USE_BYTEADDRESS_BUFFER
+// 16x1_1x16
+ByteAddressBuffer src0 : register(t0);
+ByteAddressBuffer src1 : register(t1);
+RWByteAddressBuffer dst : register(u0);
+
+static int VEC_SIZE = 1;
+static int TILE_M = 16;
+static int TILE_N = 16;
+// static int TILE_K = 16;
+
+[numthreads(16, 1, 1)]
+void main(CS_INPUT input)
+{
+    initGLBuiltins(input);
+    int width0 = K / VEC_SIZE;
+    int width1 = N / VEC_SIZE;
+
+    int group_x = int(gl_WorkGroupID.x);
+    int group_y = int(gl_WorkGroupID.y);
+    int local_x = int(gl_LocalInvocationID.x);
+
+    // Result ctile is M rows x N columns
+    // M = 16, we have 1 row of work-items, so we need 16/1 = 16 results down
+    // N = 16, we have 16 columns of work-items, so we need 16/16 = 1 result across
+
+    float  dot[16];
+    for (int i = 0; i < 16; i++)
+    {
+        dot[i] = 0.f;
+    }
+
+    int dst_write = local_x + ( group_x * ( TILE_N / VEC_SIZE ) ) + ( group_y * TILE_M ) * width1;
+
+    // Src0 is directly used as atile.
+    // It starts at the left side of src0 and walks across.
+    // atile is M rows x K columns.
+    int src0_read = local_x + ( group_y * TILE_M ) * width0;
+
+    // Src1 is directly used as btile.
+    // It starts at the top of src1 and walks down.
+    // btile is K rows x N columns.
+    int src1_read = local_x + ( group_x * ( TILE_N / VEC_SIZE ) );
+
+    // Walk ACROSS src0 and DOWN src1:
+    int w = 0;
+    do
+    {
+        // We want to load atile, which is M rows x K columns
+        // M = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // K = 16, we have 16 columns of work-items, so each work-item must load 16/16 = 1 columns
+        float  arow;
+
+        // Now load btile, which is K rows x N columns
+        // K = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // N = 16, we have 16 columns of work-items, so each work-item must load 16/16 = 1 columns
+        float  brow0 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow1 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow2 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow3 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow4 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow5 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow6 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow7 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow8 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  brow9 = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  browa = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  browb = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  browc = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  browd = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  browe = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+        float  browf = asfloat(src1.Load(src1_read * 4 + 0));  src1_read += width1;
+
+		for (int i = 0; i < 16; i++)
+		{
+		arow = asfloat(src0.Load((src0_read + (i * width0)) * 4 + 0));
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 0 )), brow0, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 1 )), brow1, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 2 )), brow2, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 3 )), brow3, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 4 )), brow4, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 5 )), brow5, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 6 )), brow6, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 7 )), brow7, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 8 )), brow8, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 9 )), brow9, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 10 )), browa, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 11 )), browb, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 12 )), browc, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 13 )), browd, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 14 )), browe, dot[i] );
+        dot[i] = mad( (float)(intel_sub_group_shuffle( arow, 15 )), browf, dot[i] );
+		}
+
+        src0_read += TILE_K / VEC_SIZE;
+        w += TILE_K / VEC_SIZE;
+    }
+    while( w < width0 );
+
+    dst.Store(dst_write * 4 + 0, asuint(dot[0]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[1]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[2]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[3]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[4]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[5]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[6]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[7]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[8]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[9]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[10]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[11]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[12]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[13]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[14]));  dst_write += width1;
+    dst.Store(dst_write * 4 + 0, asuint(dot[15]));  dst_write += width1;
+}
+#endif  // USE_BYTEADDRESS_BUFFER

@@ -16,6 +16,7 @@
 #include "SIMD_4x1_1x8_cs.hlsl.h"
 #include "SIMD_16x2_1x8_cs.hlsl.h"
 #include "SIMD_16x1_1x16_cs.hlsl.h"
+#include "BYTEADDRESS_BUFFER_cs.hlsl.h"
 #include <chrono>
 #include <iostream>
 
@@ -65,7 +66,7 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_tileN(32),
     m_tileK(32),
     m_componentSize(4),
-    m_kernelType(KERNELTYPE::USE_SIMD_16x1_1x16),
+    m_kernelType(KERNELTYPE::USE_BYTEADDRESS_BUFFER),
     m_useFxc(false),
     m_frameCount(1),
     m_dispatchCountPerFrame(2)
@@ -137,6 +138,10 @@ D3D12SM6WaveIntrinsics::KERNELTYPE D3D12SM6WaveIntrinsics::GetKernalVersion(cons
     else if (kernal == "SLM_8X8_4X16")
     {
         return KERNELTYPE::USE_SLM_8X8_4X16;
+    }
+    else if (kernal == "BYTEADDRESS_BUFFER")
+    {
+        return KERNELTYPE::USE_BYTEADDRESS_BUFFER;
     } else
     {
         return KERNELTYPE::UNSUPPORTED;
@@ -166,6 +171,12 @@ void D3D12SM6WaveIntrinsics::Start()
             m_componentSize = 2;
             break;
         case D3D12SM6WaveIntrinsics::USE_SIMD_16x1_1x16:
+            m_tileM = 16;
+            m_tileK = 16;
+            m_tileN = 16;
+            m_componentSize = 1;
+            break;
+        case D3D12SM6WaveIntrinsics::USE_BYTEADDRESS_BUFFER:
             m_tileM = 16;
             m_tileK = 16;
             m_tileN = 16;
@@ -366,6 +377,9 @@ void D3D12SM6WaveIntrinsics::LoadAssets()
         case D3D12SM6WaveIntrinsics::USE_SIMD_16x1_1x16:
             descComputePSO.CS = { g_SIMD_16x1_1x16_CS, sizeof(g_SIMD_16x1_1x16_CS) };
             break;
+        case D3D12SM6WaveIntrinsics::USE_BYTEADDRESS_BUFFER:
+            descComputePSO.CS = { g_BYTEADDRESS_BUFFER_CS, sizeof(g_BYTEADDRESS_BUFFER_CS) };
+            break;
         case D3D12SM6WaveIntrinsics::USE_SLM_8X8_4X16:
         {
             if (m_useFxc)
@@ -493,12 +507,21 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
         // Create SRV for the buffer1
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
+        if (m_kernelType == D3D12SM6WaveIntrinsics::USE_BYTEADDRESS_BUFFER)
+        {
+        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        srvDesc.Buffer.NumElements = elementCount;
+        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+        }
+        else
+        {
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.Buffer.NumElements = elementCount / m_componentSize;
         srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        }
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
         m_d3d12Device->CreateShaderResourceView(m_buffer1.Get(), &srvDesc, srvHandle);
     }
@@ -537,12 +560,21 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
         // Create SRV for buffer2
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
+        if (m_kernelType == D3D12SM6WaveIntrinsics::USE_BYTEADDRESS_BUFFER)
+        {
+        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        srvDesc.Buffer.NumElements = elementCount;
+        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+        }
+        else
+        {
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.Buffer.NumElements = elementCount / m_componentSize;
         srvDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        }
         CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(1, m_srvUavDescriptorSize); // First one is for buffer1
         m_d3d12Device->CreateShaderResourceView(m_buffer2.Get(), &srvDesc, srvHandle);
@@ -564,11 +596,20 @@ void D3D12SM6WaveIntrinsics::LoadSizeDependentResources()
             // Create UAV for bufferResult
             D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
             uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-            uavDesc.Format = DXGI_FORMAT_UNKNOWN;
             uavDesc.Buffer.FirstElement = 0;
+            if (m_kernelType == D3D12SM6WaveIntrinsics::USE_BYTEADDRESS_BUFFER)
+            {
+            uavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+            uavDesc.Buffer.NumElements = elementCount;
+            uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+            }
+            else
+            {
+            uavDesc.Format = DXGI_FORMAT_UNKNOWN;
             uavDesc.Buffer.NumElements = elementCount / m_componentSize;
             uavDesc.Buffer.StructureByteStride = m_componentSize * sizeof(float);
             uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+            }
             CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(m_srvUavHeap->GetCPUDescriptorHandleForHeapStart());
             srvHandle.Offset(2, m_srvUavDescriptorSize); // First one is for buffer1. Second one is for buffer2.
             m_d3d12Device->CreateUnorderedAccessView(m_bufferResult.Get(), nullptr, &uavDesc, srvHandle);
