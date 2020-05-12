@@ -982,3 +982,299 @@ void main(CS_INPUT input)
     dst.Store(dst_write * 4 + 0, asuint(dot[15]));  dst_write += width1;
 }
 #endif  // USE_BYTEADDRESS_BUFFER
+
+// for NVIDIA Discrete GPU SIMD width = 32
+#ifdef USE_SIMD_16x2_4x32
+StructuredBuffer<float2> src0 : register(t0);
+StructuredBuffer<float2> src1 : register(t1);
+RWStructuredBuffer<float2> dst : register(u0);
+
+static int VEC_SIZE = 2;
+static int TILE_M = 64;
+static int TILE_K0 = 64;
+static int TILE_N = 64;
+
+[numthreads(32, 4, 1)]
+void main(CS_INPUT input)
+{
+    initGLBuiltins(input);
+    int width0 = K / VEC_SIZE;
+    int width1 = N / VEC_SIZE;
+
+    int group_x = int(gl_WorkGroupID.x);
+    int group_y = int(gl_WorkGroupID.y);
+    int local_x = int(gl_LocalInvocationID.x);
+
+    // Result ctile is M rows x N columns
+    // M = 16, we have 1 row of work-items, so we need 16/1 = 16 results down
+    // N = 16, we have 8 columns of work-items, so we need 16/8 = 2 result across
+
+    float2  dot[16];
+    for (int i = 0; i < 16; i++)
+    {
+        dot[i] = 0.f;
+    }
+
+    int dst_write0 = local_x + ( group_x * ( TILE_N / VEC_SIZE ) ) + ( group_y * TILE_M ) * width1;
+
+    // Src0 is directly used as atile.
+    // It starts at the left side of src0 and walks across.
+    // atile is M rows x K columns.
+    int src0_read = local_x + ( group_y * TILE_M ) * width0;
+
+    // Src1 is directly used as btile.
+    // It starts at the top of src1 and walks down.
+    // btile is K rows x N columns.
+    int src1_read0 = local_x + ( group_x * ( TILE_N / VEC_SIZE ) );
+
+    // Walk ACROSS src0 and DOWN src1:
+    int w = 0;
+    do
+    {
+        // We want to load atile, which is M rows x K columns
+        // M = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // K = 16, we have 8 columns of work-items, so each work-item must load 16/8 = 2 columns
+        float2  arow;
+
+        // Now load btile, which is K rows x N columns
+        // K = 16, we have 1 row of work-items, so each work-item must load 16/1 = 16 rows
+        // N = 16, we have 8 columns of work-items, so each work-item must load 16/8 = 2 columns
+        float2  brow00 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow01 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow02 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow03 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow04 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow05 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow06 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow07 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow08 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow09 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow0a = src1[src1_read0];  src1_read0 += width1;
+        float2  brow0b = src1[src1_read0];  src1_read0 += width1;
+        float2  brow0c = src1[src1_read0];  src1_read0 += width1;
+        float2  brow0d = src1[src1_read0];  src1_read0 += width1;
+        float2  brow0e = src1[src1_read0];  src1_read0 += width1;
+        float2  brow0f = src1[src1_read0];  src1_read0 += width1;
+
+        float2  brow10 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow11 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow12 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow13 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow14 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow15 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow16 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow17 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow18 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow19 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1a = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1b = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1c = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1d = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1e = src1[src1_read0];  src1_read0 += width1;
+        float2  brow1f = src1[src1_read0];  src1_read0 += width1;
+
+        float2  brow20 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow21 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow22 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow23 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow24 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow25 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow26 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow27 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow28 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow29 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2a = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2b = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2c = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2d = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2e = src1[src1_read0];  src1_read0 += width1;
+        float2  brow2f = src1[src1_read0];  src1_read0 += width1;
+
+
+        float2  brow30 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow31 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow32 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow33 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow34 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow35 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow36 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow37 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow38 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow39 = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3a = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3b = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3c = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3d = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3e = src1[src1_read0];  src1_read0 += width1;
+        float2  brow3f = src1[src1_read0];  src1_read0 += width1;
+
+#ifdef PREVENT_LOOP_UNROLLING
+        for (int i = 0; i < 16; i++)
+        {
+            arow = src0[src0_read + i * width0 ];
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).x), brow00, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).y), brow01, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).x), brow02, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).y), brow03, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).x), brow04, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).y), brow05, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).x), brow06, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).y), brow07, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).x), brow08, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).y), brow09, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).x), brow0a, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).y), brow0b, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).x), brow0c, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).y), brow0d, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).x), brow0e, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).y), brow0f, dot[i] );
+
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 8 ).x), brow10, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 8 ).y), brow11, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 9 ).x), brow12, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 9 ).y), brow13, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 10 ).x), brow14, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 10 ).y), brow15, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 11 ).x), brow16, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 11 ).y), brow17, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 12 ).x), brow18, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 12 ).y), brow19, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 13 ).x), brow1a, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 13 ).y), brow1b, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 14 ).x), brow1c, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 14 ).y), brow1d, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 15 ).x), brow1e, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 15 ).y), brow1f, dot[i] );
+
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 16 ).x), brow20, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 16 ).y), brow21, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 17 ).x), brow22, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 17 ).y), brow23, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 18 ).x), brow24, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 18 ).y), brow25, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 19 ).x), brow26, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 19 ).y), brow27, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 20 ).x), brow28, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 20 ).y), brow29, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 21 ).x), brow2a, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 21 ).y), brow2b, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 22 ).x), brow2c, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 22 ).y), brow2d, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 23 ).x), brow2e, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 23 ).y), brow2f, dot[i] );
+
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 24 ).x), brow30, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 24 ).y), brow31, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 25 ).x), brow32, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 25 ).y), brow33, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 26 ).x), brow34, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 26 ).y), brow35, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 27 ).x), brow36, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 27 ).y), brow37, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 28 ).x), brow38, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 28 ).y), brow39, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 29 ).x), brow3a, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 29 ).y), brow3b, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 30 ).x), brow3c, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 30 ).y), brow3d, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 31 ).x), brow3e, dot[i] );
+            dot[i] = mad( (float2)(intel_sub_group_shuffle( arow, 31 ).y), brow3f, dot[i] );
+        }
+#else
+#define MM_DOT_PRODUCT( _row, _dot )   \
+        arow = src0[src0_read + _row * width0 ];                           \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).x), brow00, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 0 ).y), brow01, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).x), brow02, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 1 ).y), brow03, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).x), brow04, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 2 ).y), brow05, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).x), brow06, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 3 ).y), brow07, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).x), brow08, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 4 ).y), brow09, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).x), brow0a, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 5 ).y), brow0b, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).x), brow0c, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 6 ).y), brow0d, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).x), brow0e, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 7 ).y), brow0f, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 8 ).x), brow10, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 8 ).y), brow11, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 9 ).x), brow12, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 9 ).y), brow13, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 10 ).x), brow14, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 10 ).y), brow15, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 11 ).x), brow16, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 11 ).y), brow17, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 12 ).x), brow18, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 12 ).y), brow19, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 13 ).x), brow1a, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 13 ).y), brow1b, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 14 ).x), brow1c, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 14 ).y), brow1d, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 15 ).x), brow1e, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 15 ).y), brow1f, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 16 ).x), brow20, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 16 ).y), brow21, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 17 ).x), brow22, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 17 ).y), brow23, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 18 ).x), brow24, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 18 ).y), brow25, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 19 ).x), brow26, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 19 ).y), brow27, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 20 ).x), brow28, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 20 ).y), brow29, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 21 ).x), brow2a, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 21 ).y), brow2b, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 22 ).x), brow2c, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 22 ).y), brow2d, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 23 ).x), brow2e, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 23 ).y), brow2f, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 24 ).x), brow30, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 24 ).y), brow31, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 25 ).x), brow32, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 25 ).y), brow33, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 26 ).x), brow34, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 26 ).y), brow35, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 27 ).x), brow36, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 27 ).y), brow37, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 28 ).x), brow38, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 28 ).y), brow39, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 29 ).x), brow3a, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 29 ).y), brow3b, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 30 ).x), brow3c, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 30 ).y), brow3d, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 31 ).x), brow3e, _dot ); \
+        _dot = mad( (float2)(intel_sub_group_shuffle( arow, 31 ).y), brow3f, _dot ); \
+
+        MM_DOT_PRODUCT( 0x0, dot[0] );
+        MM_DOT_PRODUCT( 0x1, dot[1] );
+        MM_DOT_PRODUCT( 0x2, dot[2] );
+        MM_DOT_PRODUCT( 0x3, dot[3] );
+        MM_DOT_PRODUCT( 0x4, dot[4] );
+        MM_DOT_PRODUCT( 0x5, dot[5] );
+        MM_DOT_PRODUCT( 0x6, dot[6] );
+        MM_DOT_PRODUCT( 0x7, dot[7] );
+        MM_DOT_PRODUCT( 0x8, dot[8] );
+        MM_DOT_PRODUCT( 0x9, dot[9] );
+        MM_DOT_PRODUCT( 0xa, dot[10] );
+        MM_DOT_PRODUCT( 0xb, dot[11] );
+        MM_DOT_PRODUCT( 0xc, dot[12] );
+        MM_DOT_PRODUCT( 0xd, dot[13] );
+        MM_DOT_PRODUCT( 0xe, dot[14] );
+        MM_DOT_PRODUCT( 0xf, dot[15] );
+
+#undef MM_DOT_PRODUCT
+#endif  //PREVENT_LOOP_UNROLLING
+        src0_read += TILE_K0 / VEC_SIZE;
+        w += TILE_K0 / VEC_SIZE;
+    }
+    while( w < width0 );
+
+    for (int i = 0; i < 16; i++)
+    {
+        dst[dst_write0] = dot[i];  dst_write0 += width1;
+    }
+}
+#endif  // USE_SIMD_16x2_1x8
