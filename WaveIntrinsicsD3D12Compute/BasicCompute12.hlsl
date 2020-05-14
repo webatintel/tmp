@@ -983,7 +983,7 @@ void main(CS_INPUT input)
 }
 #endif  // USE_BYTEADDRESS_BUFFER
 
-// for NVIDIA Discrete GPU SIMD width = 32
+// Add SIMD width =32 algorithm
 #ifdef USE_SIMD_16x2_4x32
 StructuredBuffer<float2> src0 : register(t0);
 StructuredBuffer<float2> src1 : register(t1);
