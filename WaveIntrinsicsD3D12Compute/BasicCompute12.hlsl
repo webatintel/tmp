@@ -1277,4 +1277,4 @@ void main(CS_INPUT input)
         dst[dst_write0] = dot[i];  dst_write0 += width1;
     }
 }
-#endif  // USE_SIMD_16x2_1x8
+#endif  // USE_SIMD_16x2_4x32
