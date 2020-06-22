@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <TITLE>SGEMM WebGPU</TITLE>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script type="module" src="script_matmul_webgpu.js">
+    </script>
+  </head>
+  <body>
+    <h1>Get started with GPU Compute on the Web</h1>
+    <h2>Sample - Matrix multiplication</h2>
+    <p><div id="output"><font color="blue">calculating</font></div>
+    <input type="button" id="matmul" value="MatMul" size="1">
+    <script type="module">
+      import {run} from './script_matmul_webgpu.js'
+
+      document.querySelector('#matmul').addEventListener('click', run)
+    </script>
+    <p>Re-run all programs many times
+      and try to choose "representative" values. Results differ very much on different GPUs.
+  </body>
+</html>
