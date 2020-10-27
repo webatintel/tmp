@@ -147,12 +147,12 @@ var gpuCommands;
 
   // Uniform Buffer
   const uniformData = new Int32Array(dimUniforms);
-
-  const [uniformBuffer, arrayBufferData] = device.createBufferMapped({
+  const uniformBuffer = device.createBuffer({
+    mappedAtCreation: true,
     size: uniformData.byteLength,
     usage: GPUBufferUsage.UNIFORM
   });
-  new Int32Array(arrayBufferData).set(uniformData);
+  new Int32Array(uniformBuffer.getMappedRange()).set(uniformData);
   uniformBuffer.unmap();
 
   // First Matrix
@@ -179,11 +179,12 @@ var gpuCommands;
   firstMatrix[14] = -60;
   firstMatrix[15] = -80; 
 */
-  const [gpuBufferFirstMatrix, arrayBufferFirstMatrix] = device.createBufferMapped({
+  const gpuBufferFirstMatrix = device.createBuffer({
+    mappedAtCreation: true,
     size: firstMatrix.byteLength,
     usage: GPUBufferUsage.STORAGE
   });
-  new Float32Array(arrayBufferFirstMatrix).set(firstMatrix);
+  new Float32Array(gpuBufferFirstMatrix.getMappedRange()).set(firstMatrix);
   gpuBufferFirstMatrix.unmap();
 
   // Second Matrix
@@ -197,12 +198,12 @@ var gpuCommands;
   secondMatrix[1] = 0.5;
   secondMatrix[2] = 1;
   */
-
-  const [gpuBufferSecondMatrix, arrayBufferSecondMatrix] = device.createBufferMapped({
+  const gpuBufferSecondMatrix = device.createBuffer({
+    mappedAtCreation: true,
     size: secondMatrix.byteLength,
     usage: GPUBufferUsage.STORAGE
   });
-  new Float32Array(arrayBufferSecondMatrix).set(secondMatrix);
+  new Float32Array(gpuBufferSecondMatrix.getMappedRange()).set(secondMatrix);
   gpuBufferSecondMatrix.unmap();
 
   // Result Matrix
@@ -507,7 +508,8 @@ const sampleB =
   device.defaultQueue.submit([gpuCommands]);
 
   // Read buffer.
-  const arrayBuffer = new Float32Array(await gpuReadBuffer.mapReadAsync());
+  await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+  const arrayBuffer = new Float32Array(gpuReadBuffer.getMappedRange());
 
   console.log(arrayBuffer);
   document.getElementById('output').innerText =
@@ -527,5 +529,4 @@ export async function run(){
 
   document.getElementById('output').innerText =
     `time = ${(end - start).toFixed(3)}ms`;
-  gpuReadBuffer.unmap();
 }

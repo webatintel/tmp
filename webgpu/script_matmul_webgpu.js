@@ -30,11 +30,12 @@ var gpuCommands;
     dimBOuter /* B columns */
   ]);
 
-  const [uniformBuffer, arrayBufferData] = device.createBufferMapped({
+  const uniformBuffer = device.createBuffer({
+    mappedAtCreation: true,
     size: uniformData.byteLength,
     usage: GPUBufferUsage.UNIFORM
   });
-  new Int32Array(arrayBufferData).set(uniformData);
+  new Int32Array(uniformBuffer.getMappedRange()).set(uniformData);
   uniformBuffer.unmap();
 
   // First Matrix
@@ -43,11 +44,12 @@ var gpuCommands;
     firstMatrix[i] = Math.random();
   }
 
-  const [gpuBufferFirstMatrix, arrayBufferFirstMatrix] = device.createBufferMapped({
+  const gpuBufferFirstMatrix = device.createBuffer({
+    mappedAtCreation: true,
     size: firstMatrix.byteLength,
     usage: GPUBufferUsage.STORAGE
   });
-  new Float32Array(arrayBufferFirstMatrix).set(firstMatrix);
+  new Float32Array(gpuBufferFirstMatrix.getMappedRange()).set(firstMatrix);
   gpuBufferFirstMatrix.unmap();
 
   // Second Matrix
@@ -56,11 +58,12 @@ var gpuCommands;
     secondMatrix[i] = Math.random();
   }
 
-  const [gpuBufferSecondMatrix, arrayBufferSecondMatrix] = device.createBufferMapped({
+  const gpuBufferSecondMatrix = device.createBuffer({
+    mappedAtCreation: true,
     size: secondMatrix.byteLength,
     usage: GPUBufferUsage.STORAGE
   });
-  new Float32Array(arrayBufferSecondMatrix).set(secondMatrix);
+  new Float32Array(gpuBufferSecondMatrix.getMappedRange()).set(secondMatrix);
   gpuBufferSecondMatrix.unmap();
 
   // Result Matrix
@@ -309,7 +312,8 @@ var gpuCommands;
   device.defaultQueue.submit([gpuCommands]);
 
   // Read buffer.
-  const arrayBuffer = new Float32Array(await gpuReadBuffer.mapReadAsync());
+  await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+  const arrayBuffer = new Float32Array(gpuReadBuffer.getMappedRange());
 
   let acc = 0, m = Math.floor(dimAOuter*Math.random()),  n = Math.floor(dimBOuter*Math.random())
   for(let k=0; k<dimInner; k++) acc += firstMatrix[m * dimInner + k] * secondMatrix[k * dimBOuter + n];
@@ -341,7 +345,8 @@ export async function run(){
   var end = performance.now();
 
   // Read buffer.
-  const arrayBuffer = new Float32Array(await gpuReadBuffer.mapReadAsync());
+  await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+  const arrayBuffer = new Float32Array(gpuReadBuffer.getMappedRange());
 
   let acc = 0, m = Math.floor(dimAOuter*Math.random()),  n = Math.floor(dimBOuter*Math.random())
   for(let k=0; k<dimInner; k++) acc += firstMatrix[m * dimInner + k] * secondMatrix[k * dimBOuter + n];
