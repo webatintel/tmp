@@ -13,10 +13,13 @@
     <h2>Sample - Matrix multiplication</h2>
     <p><div id="output"><font color="blue">calculating</font></div>
     <input type="button" id="matmul" value="MatMul" size="1">
+    iteration=<input size="3" value="50" id="it">
     <script type="module">
-      import {run} from './script_matmul_webgpu.js'
+      import {run, handleChange} from './script_matmul_webgpu.js'
 
       document.querySelector('#matmul').addEventListener('click', run)
+      var itElement = document.getElementById("it");
+      itElement.onchange = handleChange;
     </script>
     <p>Re-run all programs many times
       and try to choose "representative" values. Results differ very much on different GPUs.

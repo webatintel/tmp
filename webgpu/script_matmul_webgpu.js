@@ -6,10 +6,29 @@ const dimBOuter = 1024;
 const localSizeX = 16;
 const localSizeY = 16;
 const workPerThread = [4, 4];
-var device;
+var device, computePipeline, bindGroup;
 var gpuReadBuffer;
 var firstMatrix, secondMatrix;
-var gpuCommands;
+var iteration = 50;
+var commandQueue = [];
+
+function recordCommands()
+{
+  const commandEncoder = device.createCommandEncoder();
+
+  const passEncoder = commandEncoder.beginComputePass();
+  passEncoder.setPipeline(computePipeline);
+  passEncoder.setBindGroup(0, bindGroup);
+  passEncoder.dispatch(dimBOuter / (localSizeX * workPerThread[0]) /* x */,
+                       dimAOuter / (localSizeY * workPerThread[1])  /* y */);
+  passEncoder.endPass();
+  commandQueue.push(commandEncoder);
+}
+
+function submitQueue() {
+  device.defaultQueue.submit(commandQueue.map(enc => enc.finish()));
+  commandQueue = [];
+}
 
 (async () => {
   if (!navigator.gpu) {
@@ -101,7 +120,7 @@ var gpuCommands;
     ]
   });
 
-  const bindGroup = device.createBindGroup({
+  bindGroup = device.createBindGroup({
     layout: bindGroupLayout,
     entries: [
       {
@@ -269,7 +288,7 @@ var gpuCommands;
 
   const glslang = await glslangModule();
 
-  const computePipeline = device.createComputePipeline({
+  computePipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout]
     }),
@@ -281,16 +300,8 @@ var gpuCommands;
     }
   });
 
-  // Commands submission
+  recordCommands();
 
-  const commandEncoder = device.createCommandEncoder();
-
-  const passEncoder = commandEncoder.beginComputePass();
-  passEncoder.setPipeline(computePipeline);
-  passEncoder.setBindGroup(0, bindGroup);
-  passEncoder.dispatch(uniformData[3] / (localSizeX * workPerThread[0]) /* x */,
-                       uniformData[0] / (localSizeY * workPerThread[1])  /* y */);
-  passEncoder.endPass();
 
   // Get a GPU buffer for reading in an unmapped state.
   gpuReadBuffer = device.createBuffer({
@@ -299,6 +310,7 @@ var gpuCommands;
   });
 
   // Encode commands for copying buffer to buffer.
+  const commandEncoder = device.createCommandEncoder();
   commandEncoder.copyBufferToBuffer(
     resultMatrixBuffer /* source buffer */,
     0 /* source offset */,
@@ -306,10 +318,10 @@ var gpuCommands;
     0 /* destination offset */,
     resultMatrixBufferSize /* size */
   );
+  commandQueue.push(commandEncoder);
 
   // Submit GPU commands.
-  gpuCommands = commandEncoder.finish();
-  device.defaultQueue.submit([gpuCommands]);
+  submitQueue();
 
   // Read buffer.
   await gpuReadBuffer.mapAsync(GPUMapMode.READ);
@@ -335,11 +347,19 @@ var gpuCommands;
   gpuReadBuffer.unmap();
 })();
 
+export function handleChange(e)
+{
+  iteration = parseInt(e.target.value);
+}
+
 export async function run(){
   const computeFence = device.defaultQueue.createFence();
-
   var start = performance.now()
-  device.defaultQueue.submit([gpuCommands]);
+  for (var i = 0; i < iteration; i++)
+  {
+    recordCommands();
+  }
+  submitQueue();
   device.defaultQueue.signal(computeFence, 1);
   await computeFence.onCompletion(1);
   var end = performance.now();
@@ -351,8 +371,9 @@ export async function run(){
   let acc = 0, m = Math.floor(dimAOuter*Math.random()),  n = Math.floor(dimBOuter*Math.random())
   for(let k=0; k<dimInner; k++) acc += firstMatrix[m * dimInner + k] * secondMatrix[k * dimBOuter + n];
 
+  const meanTime = (end - start) / iteration;
   document.getElementById('output').innerText =
-    `time = ${(end - start).toFixed(3)}ms, GFLOPS=${Math.round(2*dimAOuter*dimBOuter*dimInner/(end - start)/10000)/100}
+    `time = ${(meanTime).toFixed(3)}ms, GFLOPS=${Math.round(2*dimAOuter*dimBOuter*dimInner/meanTime/10000)/100}
      result[${m}, ${n}] = ${arrayBuffer[m * dimBOuter + n]}, expectedResult = ${acc}`;
   gpuReadBuffer.unmap();
 }
