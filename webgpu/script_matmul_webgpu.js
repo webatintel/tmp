@@ -331,7 +331,7 @@ function submitQueue() {
   for(let k=0; k<dimInner; k++) acc += firstMatrix[m * dimInner + k] * secondMatrix[k * dimBOuter + n];
   console.log(`result[${m}, ${n}] = ${arrayBuffer[m * dimBOuter + n]}, expectedResult = ${acc}`);
   document.getElementById('output').innerText =
-    'Finished the warmup. press "MatMul" button to see the result data.';
+    'Finished the warmup. press "Run" button to see the result data.';
   /*
   for (var i = 0; i < dimAOuter; i++)
   for (var j = 0; j< dimBOuter; j++)
@@ -373,7 +373,7 @@ export async function run(){
 
   const meanTime = (end - start) / iteration;
   document.getElementById('output').innerText =
-    `time = ${(meanTime).toFixed(3)}ms, GFLOPS=${Math.round(2*dimAOuter*dimBOuter*dimInner/meanTime/10000)/100}
+    `Mean time = ${(meanTime).toFixed(3)}ms, GFLOPS=${Math.round(2*dimAOuter*dimBOuter*dimInner/meanTime/10000)/100}
      result[${m}, ${n}] = ${arrayBuffer[m * dimBOuter + n]}, expectedResult = ${acc}`;
   gpuReadBuffer.unmap();
 }

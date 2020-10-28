@@ -12,8 +12,8 @@
     <h1>Get started with GPU Compute on the Web</h1>
     <h2>Sample - Matrix multiplication</h2>
     <p><div id="output"><font color="blue">calculating</font></div>
-    <input type="button" id="matmul" value="MatMul" size="1">
-    iteration=<input size="3" value="50" id="it">
+    <input type="button" id="matmul" value="Run" size="1">
+    iteration=<input size="3" value="100" id="it">
     <script type="module">
       import {run, handleChange} from './script_matmul_webgpu.js'
 
@@ -21,7 +21,6 @@
       var itElement = document.getElementById("it");
       itElement.onchange = handleChange;
     </script>
-    <p>Re-run all programs many times
-      and try to choose "representative" values. Results differ very much on different GPUs.
+    <p>The 'Run' button will execute matmul for 'iteration' times and get the mean time.
   </body>
 </html>
