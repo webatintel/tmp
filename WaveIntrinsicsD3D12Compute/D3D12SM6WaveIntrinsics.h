@@ -120,7 +120,7 @@ private:
 	bool m_useFxc; // This flag only works for shared memory algorithm.
     UINT m_frameCount = 1;
     // The performance will be improved if we increase the dispatch number to a higher value. Such as 200.
-    UINT m_dispatchCountPerFrame = 20;
+    UINT m_dispatchCountPerFrame = 200;
 
 	KERNELTYPE GetKernalVersion(const std::string& kernel);
 	void GetHardwareAdapter(IDXGIFactory2* pFactory, IDXGIAdapter1** ppAdapter);

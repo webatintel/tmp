@@ -63,14 +63,14 @@ D3D12SM6WaveIntrinsics::D3D12SM6WaveIntrinsics(int argc, char *argv[]) :
     m_M(1024),
     m_N(1024),
     m_K(1024),
-    m_tileM(8),
-    m_tileN(32),
-    m_tileK(32),
-    m_componentSize(4),
-    m_kernelType(KERNELTYPE::USE_SIMD_8X4_1X8),
+    m_tileM(16),
+    m_tileN(16),
+    m_tileK(16),
+    m_componentSize(1),
+    m_kernelType(KERNELTYPE::USE_SIMD_16x1_1x16),
     m_useFxc(false),
     m_frameCount(1),
-    m_dispatchCountPerFrame(2)
+    m_dispatchCountPerFrame(400)
 {
     for (int i = 0; i < argc; ++i)
     {
@@ -743,10 +743,10 @@ void D3D12SM6WaveIntrinsics::RenderScene()
     {
         avg_kernel = total_kernel / m_frameCount / m_dispatchCountPerFrame;
     }
-    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\n",
+    printf("Avg Host GFlops = %f, Avg kernel GFlops = %f, Peak Kernel GFlops = %f\nAvg Host Time = %f, Avg kernel Time = %f, Peak Kernel Time = %f\n",
            flops / avg_time / 10000 / 100,
            flops / avg_kernel / 10000 / 100,
-           flops / minTime / 10000 / 100);
+           flops / minTime / 10000 / 100, avg_time, avg_kernel, minTime);
 
     m_computeAllocator->Reset();
     m_commandList->Reset(m_computeAllocator.Get(), m_computePSO.Get());
