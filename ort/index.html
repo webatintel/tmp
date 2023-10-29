@@ -30,12 +30,13 @@
     feeds['b'] = getTensor('float32', 'ramp', [4, 3]);
     const results = await session.run(feeds);
     let result = results[session.outputNames[0]]['data'];
-    console.log(result);
+    status = `EP: ${ep}`;
     if (result.join(',') === '42,48,54,114,136,158,186,224,262') {
-      reportStatus('Result is correct');
+      status += ', Result: correct';
     } else {
-      reportStatus('Result is wrong');
+      status += ', Result: wrong';
     }
+    reportStatus(status);
   }
 
   async function getEp() {
