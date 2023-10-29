@@ -26,6 +26,11 @@
     const results = await session.run(feeds);
     let result = results[session.outputNames[0]]['data'];
     console.log(result);
+    if (result.join(',') === '42,48,54,114,136,158,186,224,262') {
+      console.log('Result is correct');
+    } else {
+      console.log('Result is wrong');
+    }
   }
 
   async function getEp() {
