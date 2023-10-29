@@ -1,5 +1,5 @@
 <body>
-
+  <h1 align='center' id='status'></h1>
 </body>
 <script>
   'use strict';
@@ -32,9 +32,9 @@
     let result = results[session.outputNames[0]]['data'];
     console.log(result);
     if (result.join(',') === '42,48,54,114,136,158,186,224,262') {
-      console.log('Result is correct');
+      reportStatus('Result is correct');
     } else {
-      console.log('Result is wrong');
+      reportStatus('Result is wrong');
     }
   }
 
@@ -47,19 +47,6 @@
       return 'wasm';
     }
     return 'webgpu';
-  }
-
-  async function loadScript(url) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.onload = resolve;
-      script.onerror = reject;
-      script.src = url;
-      if (url.startsWith('http')) {
-        script.crossOrigin = 'anonymous';
-      }
-      document.body.append(script);
-    })
   }
 
   function getTensor(type, data, dims) {
@@ -97,5 +84,21 @@
     return new ort.Tensor(type, _data, dims);
   }
 
+  async function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.onload = resolve;
+      script.onerror = reject;
+      script.src = url;
+      if (url.startsWith('http')) {
+        script.crossOrigin = 'anonymous';
+      }
+      document.body.append(script);
+    })
+  }
+
+  function reportStatus(status) {
+    document.getElementById('status').innerHTML = status;
+  }
   main();
 </script>
