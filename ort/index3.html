@@ -1,0 +1,97 @@
+<body>
+  <h1 align='center' id='status'></h1>
+</body>
+<script>
+  'use strict';
+
+  async function main() {
+    let ep = await getEp();
+    let url = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@latest/dist/ort.webgpu.min.js';
+    await loadScript(url);
+    const option = {
+      executionProviders: [
+        {
+          name: ['webgpu', 'wasm']
+        },
+      ]
+    };
+    const session = await ort.InferenceSession.create('model.onnx', option);
+    const feeds = {};
+    feeds['a'] = getTensor('float32', 'ramp', [3, 4]);
+    feeds['b'] = getTensor('float32', 'ramp', [4, 3]);
+    const results = await session.run(feeds);
+    let result = results[session.outputNames[0]]['data'];
+    status = `EP: ${ep}`;
+    if (result.join(',') === '42,48,54,114,136,158,186,224,262') {
+      status += ', Result: correct';
+    } else {
+      status += ', Result: wrong';
+    }
+    reportStatus(status);
+  }
+
+  async function getEp() {
+    if (!navigator.gpu) {
+      return 'wasm';
+    }
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      //delete Navigator.prototype.gpu;
+      return 'wasm';
+    }
+    return 'webgpu';
+  }
+
+  function getTensor(type, data, dims) {
+    let typedArray;
+    if (type === 'bool') {
+      return new ort.Tensor(type, [data], [1]);
+    } else if (type === 'uint16') {
+      typedArray = Uint16Array;
+    } else if (type === 'float16') {
+      typedArray = Uint16Array;
+    } else if (type === 'float32') {
+      typedArray = Float32Array;
+    } else if (type === 'int32') {
+      typedArray = Int32Array;
+    } else if (type === 'int64') {
+      typedArray = BigInt64Array;
+    }
+
+    let _data;
+    if (Array.isArray(data)) {
+      _data = data;
+    } else {
+      let size = 1;
+      dims.forEach((dim) => {
+        size *= dim;
+      });
+      if (data === 'random') {
+        _data = typedArray.from({ length: size }, () => Math.random());
+      } else if (data === 'ramp') {
+        _data = typedArray.from({ length: size }, (_, i) => i);
+      } else {
+        _data = typedArray.from({ length: size }, () => data);
+      }
+    }
+    return new ort.Tensor(type, _data, dims);
+  }
+
+  async function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.onload = resolve;
+      script.onerror = reject;
+      script.src = url;
+      if (url.startsWith('http')) {
+        script.crossOrigin = 'anonymous';
+      }
+      document.body.append(script);
+    })
+  }
+
+  function reportStatus(status) {
+    document.getElementById('status').innerHTML = status;
+  }
+  main();
+</script>
