@@ -5,17 +5,22 @@
   'use strict';
 
   async function main() {
-    const urls = ['https://cdn.jsdelivr.net/npm/onnxruntime-web@latest/dist/ort.webgpu.min.js'];
-    for (let url of urls) {
-      await loadScript(url);
-    }
-
     let ep = await getEp();
+    let deviceType;
+    let url;
+    if (ep === 'webgpu') {
+      deviceType = 'gpu';
+      url = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@latest/dist/ort.webgpu.min.js';
+    } else {
+      deviceType = 'cpu';
+      url = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js';
+    }
+    await loadScript(url);
     const option = {
       executionProviders: [
         {
           name: ep,
-          deviceType: ep === 'webgpu' ? 'gpu' : 'cpu',
+          deviceType: deviceType,
         },
       ]
     };
