@@ -36,7 +36,7 @@
     }
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) {
-      //delete Navigator.prototype.gpu;
+      delete Navigator.prototype.gpu;
       return 'wasm';
     }
     return 'webgpu';
